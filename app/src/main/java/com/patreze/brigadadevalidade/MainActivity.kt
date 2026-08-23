@@ -2,8 +2,8 @@ package com.patreze.brigadadevalidade
 
 import android.app.Activity
 import android.os.Bundle
-import android.graphics.Color
-import android.graphics.Typeface
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.Gravity
 import android.widget.*
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
@@ -39,7 +39,6 @@ class MainActivity : Activity() {
         val titulo = TextView(this)
         titulo.text = "BRIGADA DE VALIDADE"
         titulo.textSize = 26f
-        titulo.setTypeface(null, Typeface.BOLD)
         titulo.gravity = Gravity.CENTER
 
         layout.addView(titulo)
@@ -103,18 +102,29 @@ class MainActivity : Activity() {
 
             try {
 
-                val url =
-                    URL("https://world.openfoodfacts.org/api/v2/product/$codigo.json")
+                val url = URL(
+                    "https://world.openfoodfacts.org/api/v3/product/$codigo.json" +
+                    "?fields=code,product_name,product_name_pt,brands,quantity"
+                )
 
                 val conexao =
                     url.openConnection() as HttpURLConnection
 
                 conexao.requestMethod = "GET"
-                conexao.connectTimeout = 10000
-                conexao.readTimeout = 10000
+                conexao.connectTimeout = 15000
+                conexao.readTimeout = 15000
+
+                conexao.setRequestProperty(
+                    "User-Agent",
+                    "BrigadaDeValidade/0.3 (Android)"
+                )
 
                 val resposta =
-                    conexao.inputStream.bufferedReader().readText()
+                    conexao.inputStream
+                        .bufferedReader()
+                        .readText()
+
+                conexao.disconnect()
 
                 val json = JSONObject(resposta)
 
@@ -124,25 +134,62 @@ class MainActivity : Activity() {
                 var nome = ""
 
                 if (encontrado) {
+
                     val produto =
                         json.optJSONObject("product")
 
-                    nome =
-                        produto?.optString("product_name", "") ?: ""
+                    if (produto != null) {
+
+                        nome =
+                            produto.optString(
+                                "product_name_pt",
+                                ""
+                            )
+
+                        if (nome.isBlank()) {
+
+                            nome =
+                                produto.optString(
+                                    "product_name",
+                                    ""
+                                )
+                        }
+
+                        val marca =
+                            produto.optString(
+                                "brands",
+                                ""
+                            )
+
+                        val quantidadeComercial =
+                            produto.optString(
+                                "quantity",
+                                ""
+                            )
+
+                        if (marca.isNotBlank()) {
+                            nome = "$nome - $marca"
+                        }
+
+                        if (
+                            quantidadeComercial.isNotBlank() &&
+                            nome.isNotBlank()
+                        ) {
+                            nome =
+                                "$nome $quantidadeComercial"
+                        }
+                    }
                 }
 
                 runOnUiThread {
 
-                    if (nome.isNotBlank()) {
-                        mostrarCadastro(nome)
-                    } else {
-                        mostrarCadastro("")
-                    }
+                    mostrarCadastro(nome)
                 }
 
             } catch (e: Exception) {
 
                 runOnUiThread {
+
                     mostrarCadastro("")
                 }
             }
@@ -165,7 +212,6 @@ class MainActivity : Activity() {
                 "PRODUTO NÃO ENCONTRADO"
 
         titulo.textSize = 22f
-        titulo.setTypeface(null, Typeface.BOLD)
 
         layout.addView(titulo)
 
@@ -195,7 +241,67 @@ class MainActivity : Activity() {
         validade = EditText(this)
 
         validade.hint = "Validade (DD/MM/AAAA)"
-        validade.inputType = 1
+        validade.inputType = 2
+        validade.maxLength = 10
+
+        validade.addTextChangedListener(object : TextWatcher {
+
+            private var alterando = false
+
+            override fun beforeTextChanged(
+                s: CharSequence?,
+                start: Int,
+                count: Int,
+                after: Int
+            ) {}
+
+            override fun onTextChanged(
+                s: CharSequence?,
+                start: Int,
+                before: Int,
+                count: Int
+            ) {}
+
+            override fun afterTextChanged(
+                s: Editable?
+            ) {
+
+                if (alterando || s == null) return
+
+                val numeros =
+                    s.toString().replace("/", "")
+
+                if (numeros.length > 8) return
+
+                val formatado =
+                    StringBuilder()
+
+                for (i in numeros.indices) {
+
+                    if (i == 2 || i == 4) {
+                        formatado.append("/")
+                    }
+
+                    formatado.append(numeros[i])
+                }
+
+                val novoTexto =
+                    formatado.toString()
+
+                if (novoTexto != s.toString()) {
+
+                    alterando = true
+
+                    validade.setText(novoTexto)
+
+                    validade.setSelection(
+                        novoTexto.length
+                    )
+
+                    alterando = false
+                }
+            }
+        })
 
         layout.addView(validade)
 
@@ -214,46 +320,62 @@ class MainActivity : Activity() {
 
     private fun salvarProduto() {
 
-        val nome = nomeProduto.text.toString().trim()
-        val qtdTexto = quantidade.text.toString().trim()
-        val validadeTexto = validade.text.toString().trim()
+        val nome =
+            nomeProduto.text.toString().trim()
+
+        val qtdTexto =
+            quantidade.text.toString().trim()
+
+        val validadeTexto =
+            validade.text.toString().trim()
 
         if (nome.isEmpty()) {
+
             Toast.makeText(
                 this,
                 "Digite o nome do produto",
                 Toast.LENGTH_SHORT
             ).show()
+
             return
         }
 
         if (qtdTexto.isEmpty()) {
+
             Toast.makeText(
                 this,
                 "Digite a quantidade",
                 Toast.LENGTH_SHORT
             ).show()
+
             return
         }
 
         if (validadeTexto.isEmpty()) {
+
             Toast.makeText(
                 this,
                 "Digite a validade",
                 Toast.LENGTH_SHORT
             ).show()
+
             return
         }
 
         val quantidadeInt =
             qtdTexto.toIntOrNull()
 
-        if (quantidadeInt == null || quantidadeInt <= 0) {
+        if (
+            quantidadeInt == null ||
+            quantidadeInt <= 0
+        ) {
+
             Toast.makeText(
                 this,
                 "Quantidade inválida",
                 Toast.LENGTH_SHORT
             ).show()
+
             return
         }
 
@@ -261,11 +383,13 @@ class MainActivity : Activity() {
             converterData(validadeTexto)
 
         if (validadeFormatada == null) {
+
             Toast.makeText(
                 this,
                 "Data inválida. Use DD/MM/AAAA",
                 Toast.LENGTH_SHORT
             ).show()
+
             return
         }
 
@@ -277,7 +401,9 @@ class MainActivity : Activity() {
         )
     }
 
-    private fun converterData(data: String): String? {
+    private fun converterData(
+        data: String
+    ): String? {
 
         return try {
 
@@ -298,6 +424,7 @@ class MainActivity : Activity() {
             ).format(dataConvertida!!)
 
         } catch (e: Exception) {
+
             null
         }
     }
@@ -336,7 +463,13 @@ class MainActivity : Activity() {
         db.execSQL(
             """
             INSERT INTO produtos
-            (codigo_barras, produto, quantidade, validade, criado_em)
+            (
+                codigo_barras,
+                produto,
+                quantidade,
+                validade,
+                criado_em
+            )
             VALUES (?, ?, ?, ?, ?)
             """.trimIndent(),
             arrayOf(
