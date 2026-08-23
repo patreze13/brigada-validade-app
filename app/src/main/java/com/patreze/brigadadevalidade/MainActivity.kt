@@ -83,21 +83,93 @@ class MainActivity : Activity() {
 
                 codigoAtual = barcode.rawValue ?: ""
 
-                consultarProduto(codigoAtual)
+                consultarKodebar(codigoAtual)
             }
             .addOnCanceledListener {
-
                 status.text = "Leitura cancelada"
             }
             .addOnFailureListener {
-
                 status.text = "Erro ao ler código"
             }
     }
 
-    private fun consultarProduto(codigo: String) {
+    private fun consultarKodebar(codigo: String) {
 
         status.text = "Consultando produto..."
+
+        Executors.newSingleThreadExecutor().execute {
+
+            try {
+
+                val url = URL(
+                    "https://kodebar.korvensistemas.com.br/gtin/lookup?gtin=$codigo"
+                )
+
+                val conexao =
+                    url.openConnection() as HttpURLConnection
+
+                conexao.requestMethod = "GET"
+                conexao.connectTimeout = 15000
+                conexao.readTimeout = 15000
+
+                conexao.setRequestProperty(
+                    "X-API-Key",
+                    BuildConfig.KODEBAR_API_KEY
+                )
+
+                val codigoHttp = conexao.responseCode
+
+                if (codigoHttp == 200) {
+
+                    val resposta =
+                        conexao.inputStream
+                            .bufferedReader()
+                            .readText()
+
+                    conexao.disconnect()
+
+                    val json =
+                        JSONObject(resposta)
+
+                    val nome =
+                        json.optString("nome", "")
+
+                    val marca =
+                        json.optString("marca", "")
+
+                    val nomeFinal =
+                        if (
+                            nome.isNotBlank() &&
+                            marca.isNotBlank()
+                        ) {
+                            "$nome - $marca"
+                        } else {
+                            nome
+                        }
+
+                    runOnUiThread {
+                        mostrarCadastro(nomeFinal)
+                    }
+
+                } else {
+
+                    conexao.disconnect()
+
+                    consultarOpenFoodFacts(codigo)
+                }
+
+            } catch (e: Exception) {
+
+                consultarOpenFoodFacts(codigo)
+            }
+        }
+    }
+
+    private fun consultarOpenFoodFacts(codigo: String) {
+
+        runOnUiThread {
+            status.text = "Tentando segunda fonte..."
+        }
 
         Executors.newSingleThreadExecutor().execute {
 
@@ -117,73 +189,79 @@ class MainActivity : Activity() {
 
                 conexao.setRequestProperty(
                     "User-Agent",
-                    "BrigadaDeValidade/0.3 (Android)"
+                    "BrigadaDeValidade/0.4 (Android)"
                 )
 
-                val resposta =
-                    conexao.inputStream
-                        .bufferedReader()
-                        .readText()
+                val codigoHttp = conexao.responseCode
 
-                conexao.disconnect()
+                if (codigoHttp == 200) {
 
-                val json = JSONObject(resposta)
+                    val resposta =
+                        conexao.inputStream
+                            .bufferedReader()
+                            .readText()
 
-                val encontrado =
-                    json.optInt("status", 0) == 1
+                    conexao.disconnect()
 
-                var nome = ""
+                    val json =
+                        JSONObject(resposta)
 
-                if (encontrado) {
+                    val encontrado =
+                        json.optInt("status", 0) == 1
 
-                    val produto =
-                        json.optJSONObject("product")
+                    if (encontrado) {
 
-                    if (produto != null) {
+                        val produto =
+                            json.optJSONObject("product")
 
-                        nome =
-                            produto.optString(
-                                "product_name_pt",
-                                ""
-                            )
+                        var nome = ""
 
-                        if (nome.isBlank()) {
+                        if (produto != null) {
 
                             nome =
                                 produto.optString(
-                                    "product_name",
+                                    "product_name_pt",
                                     ""
                                 )
+
+                            if (nome.isBlank()) {
+
+                                nome =
+                                    produto.optString(
+                                        "product_name",
+                                        ""
+                                    )
+                            }
+
+                            val marca =
+                                produto.optString(
+                                    "brands",
+                                    ""
+                                )
+
+                            if (marca.isNotBlank()) {
+                                nome = "$nome - $marca"
+                            }
                         }
 
-                        val marca =
-                            produto.optString(
-                                "brands",
-                                ""
-                            )
-
-                        val quantidadeComercial =
-                            produto.optString(
-                                "quantity",
-                                ""
-                            )
-
-                        if (marca.isNotBlank()) {
-                            nome = "$nome - $marca"
+                        runOnUiThread {
+                            mostrarCadastro(nome)
                         }
 
-                        if (
-                            quantidadeComercial.isNotBlank() &&
-                            nome.isNotBlank()
-                        ) {
-                            nome =
-                                "$nome $quantidadeComercial"
+                    } else {
+
+                        runOnUiThread {
+                            mostrarCadastro("")
                         }
                     }
-                }
 
-                runOnUiThread {
-                    mostrarCadastro(nome)
+                } else {
+
+                    conexao.disconnect()
+
+                    runOnUiThread {
+                        mostrarCadastro("")
+                    }
                 }
 
             } catch (e: Exception) {
@@ -241,6 +319,7 @@ class MainActivity : Activity() {
 
         validade.hint = "Validade (DD/MM/AAAA)"
         validade.inputType = 2
+
         validade.filters = arrayOf(
             InputFilter.LengthFilter(10)
         )
@@ -335,28 +414,6 @@ class MainActivity : Activity() {
             Toast.makeText(
                 this,
                 "Digite o nome do produto",
-                Toast.LENGTH_SHORT
-            ).show()
-
-            return
-        }
-
-        if (qtdTexto.isEmpty()) {
-
-            Toast.makeText(
-                this,
-                "Digite a quantidade",
-                Toast.LENGTH_SHORT
-            ).show()
-
-            return
-        }
-
-        if (validadeTexto.isEmpty()) {
-
-            Toast.makeText(
-                this,
-                "Digite a validade",
                 Toast.LENGTH_SHORT
             ).show()
 

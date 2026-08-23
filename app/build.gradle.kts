@@ -1,6 +1,20 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
 }
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.inputStream().use {
+        localProperties.load(it)
+    }
+}
+
+val kodebarApiKey =
+    localProperties.getProperty("KODEBAR_API_KEY", "")
 
 android {
     namespace = "com.patreze.brigadadevalidade"
@@ -10,8 +24,14 @@ android {
         applicationId = "com.patreze.brigadadevalidade"
         minSdk = 23
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2"
+        versionCode = 4
+        versionName = "0.4"
+
+        buildConfigField(
+            "String",
+            "KODEBAR_API_KEY",
+            "\"$kodebarApiKey\""
+        )
     }
 }
 
