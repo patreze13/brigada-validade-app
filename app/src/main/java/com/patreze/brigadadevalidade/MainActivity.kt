@@ -3,6 +3,7 @@ package com.patreze.brigadadevalidade
 import android.app.Activity
 import android.os.Bundle
 import android.text.Editable
+import android.text.InputFilter
 import android.text.TextWatcher
 import android.view.Gravity
 import android.widget.*
@@ -103,8 +104,8 @@ class MainActivity : Activity() {
             try {
 
                 val url = URL(
-                    "https://world.openfoodfacts.org/api/v3/product/$codigo.json" +
-                    "?fields=code,product_name,product_name_pt,brands,quantity"
+                    "https://world.openfoodfacts.org/api/v3/product/$codigo" +
+                    ".json?fields=code,product_name,product_name_pt,brands,quantity"
                 )
 
                 val conexao =
@@ -182,14 +183,12 @@ class MainActivity : Activity() {
                 }
 
                 runOnUiThread {
-
                     mostrarCadastro(nome)
                 }
 
             } catch (e: Exception) {
 
                 runOnUiThread {
-
                     mostrarCadastro("")
                 }
             }
@@ -242,7 +241,9 @@ class MainActivity : Activity() {
 
         validade.hint = "Validade (DD/MM/AAAA)"
         validade.inputType = 2
-        validade.maxLength = 10
+        validade.filters = arrayOf(
+            InputFilter.LengthFilter(10)
+        )
 
         validade.addTextChangedListener(object : TextWatcher {
 
