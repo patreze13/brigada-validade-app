@@ -26,13 +26,10 @@ jobs:
       - name: Instalar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '9.4.0'
+          gradle-version: '8.13'
 
-      - name: Criar Gradle Wrapper
-        run: gradle wrapper --gradle-version 9.4.0
-
-      - name: Gerar APK
-        run: ./gradlew assembleDebug
+      - name: Compilar APK
+        run: gradle assembleDebug
 
       - name: Disponibilizar APK
         uses: actions/upload-artifact@v4
