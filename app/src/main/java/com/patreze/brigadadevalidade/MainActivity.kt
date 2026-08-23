@@ -31,7 +31,6 @@ class MainActivity : Activity() {
     }
 
     private fun mostrarTelaInicial() {
-
         val layout = LinearLayout(this)
         layout.orientation = LinearLayout.VERTICAL
         layout.gravity = Gravity.CENTER
@@ -41,7 +40,6 @@ class MainActivity : Activity() {
         titulo.text = "BRIGADA DE VALIDADE"
         titulo.textSize = 26f
         titulo.gravity = Gravity.CENTER
-
         layout.addView(titulo)
 
         val botao = Button(this)
@@ -57,14 +55,12 @@ class MainActivity : Activity() {
         status.text = ""
         status.textSize = 16f
         status.gravity = Gravity.CENTER
-
         layout.addView(status)
 
         setContentView(layout)
     }
 
     private fun abrirScanner() {
-
         val options =
             GmsBarcodeScannerOptions.Builder()
                 .setBarcodeFormats(
@@ -80,10 +76,13 @@ class MainActivity : Activity() {
 
         scanner.startScan()
             .addOnSuccessListener { barcode ->
-
                 codigoAtual = barcode.rawValue ?: ""
 
-                consultarKodebar(codigoAtual)
+                if (codigoAtual.isBlank()) {
+                    mostrarCadastro("")
+                } else {
+                    consultarKodebar(codigoAtual)
+                }
             }
             .addOnCanceledListener {
                 status.text = "Leitura cancelada"
@@ -94,13 +93,10 @@ class MainActivity : Activity() {
     }
 
     private fun consultarKodebar(codigo: String) {
-
         status.text = "Consultando produto..."
 
         Executors.newSingleThreadExecutor().execute {
-
             try {
-
                 val url = URL(
                     "https://kodebar.korvensistemas.com.br/gtin/lookup?gtin=$codigo"
                 )
@@ -117,19 +113,18 @@ class MainActivity : Activity() {
                     BuildConfig.KODEBAR_API_KEY
                 )
 
-                val codigoHttp = conexao.responseCode
+                val respostaHttp = conexao.responseCode
 
-                if (codigoHttp == 200) {
+                if (respostaHttp == HttpURLConnection.HTTP_OK) {
 
                     val resposta =
                         conexao.inputStream
                             .bufferedReader()
-                            .readText()
+                            .use { it.readText() }
 
                     conexao.disconnect()
 
-                    val json =
-                        JSONObject(resposta)
+                    val json = JSONObject(resposta)
 
                     val nome =
                         json.optString("nome", "")
@@ -138,46 +133,47 @@ class MainActivity : Activity() {
                         json.optString("marca", "")
 
                     val nomeFinal =
-                        if (
+                        when {
                             nome.isNotBlank() &&
-                            marca.isNotBlank()
-                        ) {
-                            "$nome - $marca"
-                        } else {
-                            nome
+                                marca.isNotBlank() ->
+                                "$nome - $marca"
+
+                            nome.isNotBlank() ->
+                                nome
+
+                            else ->
+                                ""
                         }
 
-                    runOnUiThread {
-                        mostrarCadastro(nomeFinal)
+                    if (nomeFinal.isNotBlank()) {
+                        runOnUiThread {
+                            mostrarCadastro(nomeFinal)
+                        }
+                    } else {
+                        consultarOpenFoodFacts(codigo)
                     }
 
                 } else {
-
                     conexao.disconnect()
-
                     consultarOpenFoodFacts(codigo)
                 }
 
             } catch (e: Exception) {
-
                 consultarOpenFoodFacts(codigo)
             }
         }
     }
 
     private fun consultarOpenFoodFacts(codigo: String) {
-
         runOnUiThread {
             status.text = "Tentando segunda fonte..."
         }
 
         Executors.newSingleThreadExecutor().execute {
-
             try {
-
                 val url = URL(
                     "https://world.openfoodfacts.org/api/v3/product/$codigo" +
-                    ".json?fields=code,product_name,product_name_pt,brands,quantity"
+                        ".json?fields=code,product_name,product_name_pt,brands,quantity"
                 )
 
                 val conexao =
@@ -189,27 +185,23 @@ class MainActivity : Activity() {
 
                 conexao.setRequestProperty(
                     "User-Agent",
-                    "BrigadaDeValidade/0.4 (Android)"
+                    "BrigadaDeValidade/0.5 (Android)"
                 )
 
-                val codigoHttp = conexao.responseCode
+                val respostaHttp = conexao.responseCode
 
-                if (codigoHttp == 200) {
+                if (respostaHttp == HttpURLConnection.HTTP_OK) {
 
                     val resposta =
                         conexao.inputStream
                             .bufferedReader()
-                            .readText()
+                            .use { it.readText() }
 
                     conexao.disconnect()
 
-                    val json =
-                        JSONObject(resposta)
+                    val json = JSONObject(resposta)
 
-                    val encontrado =
-                        json.optInt("status", 0) == 1
-
-                    if (encontrado) {
+                    if (json.optInt("status", 0) == 1) {
 
                         val produto =
                             json.optJSONObject("product")
@@ -225,7 +217,6 @@ class MainActivity : Activity() {
                                 )
 
                             if (nome.isBlank()) {
-
                                 nome =
                                     produto.optString(
                                         "product_name",
@@ -239,7 +230,10 @@ class MainActivity : Activity() {
                                     ""
                                 )
 
-                            if (marca.isNotBlank()) {
+                            if (
+                                nome.isNotBlank() &&
+                                marca.isNotBlank()
+                            ) {
                                 nome = "$nome - $marca"
                             }
                         }
@@ -249,7 +243,6 @@ class MainActivity : Activity() {
                         }
 
                     } else {
-
                         runOnUiThread {
                             mostrarCadastro("")
                         }
@@ -276,29 +269,25 @@ class MainActivity : Activity() {
     private fun mostrarCadastro(nomeEncontrado: String) {
 
         val layout = LinearLayout(this)
-
         layout.orientation = LinearLayout.VERTICAL
         layout.setPadding(40, 30, 40, 30)
 
         val titulo = TextView(this)
 
         titulo.text =
-            if (nomeEncontrado.isNotBlank())
+            if (nomeEncontrado.isNotBlank()) {
                 "PRODUTO ENCONTRADO"
-            else
+            } else {
                 "PRODUTO NÃO ENCONTRADO"
+            }
 
         titulo.textSize = 22f
-
         layout.addView(titulo)
 
         val codigo = TextView(this)
 
-        codigo.text =
-            "Código: $codigoAtual"
-
+        codigo.text = "Código: $codigoAtual"
         codigo.textSize = 16f
-
         layout.addView(codigo)
 
         nomeProduto = EditText(this)
@@ -320,68 +309,80 @@ class MainActivity : Activity() {
         validade.hint = "Validade (DD/MM/AAAA)"
         validade.inputType = 2
 
-        validade.filters = arrayOf(
-            InputFilter.LengthFilter(10)
-        )
+        validade.filters =
+            arrayOf(InputFilter.LengthFilter(10))
 
-        validade.addTextChangedListener(object : TextWatcher {
+        validade.addTextChangedListener(
+            object : TextWatcher {
 
-            private var alterando = false
+                private var alterando = false
 
-            override fun beforeTextChanged(
-                s: CharSequence?,
-                start: Int,
-                count: Int,
-                after: Int
-            ) {}
+                override fun beforeTextChanged(
+                    s: CharSequence?,
+                    start: Int,
+                    count: Int,
+                    after: Int
+                ) {}
 
-            override fun onTextChanged(
-                s: CharSequence?,
-                start: Int,
-                before: Int,
-                count: Int
-            ) {}
+                override fun onTextChanged(
+                    s: CharSequence?,
+                    start: Int,
+                    before: Int,
+                    count: Int
+                ) {}
 
-            override fun afterTextChanged(
-                s: Editable?
-            ) {
+                override fun afterTextChanged(
+                    s: Editable?
+                ) {
 
-                if (alterando || s == null) return
-
-                val numeros =
-                    s.toString().replace("/", "")
-
-                if (numeros.length > 8) return
-
-                val formatado =
-                    StringBuilder()
-
-                for (i in numeros.indices) {
-
-                    if (i == 2 || i == 4) {
-                        formatado.append("/")
+                    if (alterando || s == null) {
+                        return
                     }
 
-                    formatado.append(numeros[i])
-                }
+                    val numeros =
+                        s.toString()
+                            .replace("/", "")
 
-                val novoTexto =
-                    formatado.toString()
+                    if (numeros.length > 8) {
+                        return
+                    }
 
-                if (novoTexto != s.toString()) {
+                    val formatado =
+                        StringBuilder()
 
-                    alterando = true
+                    for (i in numeros.indices) {
 
-                    validade.setText(novoTexto)
+                        if (i == 2 || i == 4) {
+                            formatado.append("/")
+                        }
 
-                    validade.setSelection(
-                        novoTexto.length
-                    )
+                        formatado.append(
+                            numeros[i]
+                        )
+                    }
 
-                    alterando = false
+                    val novoTexto =
+                        formatado.toString()
+
+                    if (
+                        novoTexto != s.toString()
+                    ) {
+
+                        alterando = true
+
+                        validade.setText(
+                            novoTexto
+                        )
+
+                        validade.setSelection(
+                            novoTexto.length
+                        )
+
+                        alterando = false
+                    }
                 }
             }
-        })
+        )
 
         layout.addView(validade)
 
@@ -401,16 +402,21 @@ class MainActivity : Activity() {
     private fun salvarProduto() {
 
         val nome =
-            nomeProduto.text.toString().trim()
+            nomeProduto.text
+                .toString()
+                .trim()
 
         val qtdTexto =
-            quantidade.text.toString().trim()
+            quantidade.text
+                .toString()
+                .trim()
 
         val validadeTexto =
-            validade.text.toString().trim()
+            validade.text
+                .toString()
+                .trim()
 
         if (nome.isEmpty()) {
-
             Toast.makeText(
                 this,
                 "Digite o nome do produto",
@@ -482,7 +488,6 @@ class MainActivity : Activity() {
             ).format(dataConvertida!!)
 
         } catch (e: Exception) {
-
             null
         }
     }
@@ -520,8 +525,7 @@ class MainActivity : Activity() {
 
         db.execSQL(
             """
-            INSERT INTO produtos
-            (
+            INSERT INTO produtos (
                 codigo_barras,
                 produto,
                 quantidade,
