@@ -1,7 +1,7 @@
 import java.util.Properties
 
 plugins {
-    id("com.android.application")
+    id("com.android.application") version "9.3.0"
 }
 
 val localProperties = Properties()
