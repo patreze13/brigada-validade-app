@@ -3,13 +3,19 @@ package com.patreze.brigadadevalidade
 import android.app.Activity
 import android.content.ContentValues
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.text.Editable
 import android.text.InputFilter
 import android.text.TextWatcher
 import android.view.Gravity
-import android.widget.*
+import android.widget.Button
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
@@ -40,12 +46,7 @@ class MainActivity : Activity() {
     }
 
     private fun criarTabelaCatalogo() {
-        val db = openOrCreateDatabase(
-            "validade.db",
-            MODE_PRIVATE,
-            null
-        )
-
+        val db = openOrCreateDatabase("validade.db", MODE_PRIVATE, null)
         db.execSQL(
             """
             CREATE TABLE IF NOT EXISTS catalogo_produtos (
@@ -54,17 +55,11 @@ class MainActivity : Activity() {
             )
             """.trimIndent()
         )
-
         db.close()
     }
 
     private fun criarTabelaProdutos() {
-        val db = openOrCreateDatabase(
-            "validade.db",
-            MODE_PRIVATE,
-            null
-        )
-
+        val db = openOrCreateDatabase("validade.db", MODE_PRIVATE, null)
         db.execSQL(
             """
             CREATE TABLE IF NOT EXISTS produtos (
@@ -81,19 +76,16 @@ class MainActivity : Activity() {
             )
             """.trimIndent()
         )
-
         db.close()
     }
 
     private fun mostrarTelaInicial() {
         val layout = LinearLayout(this)
-
         layout.orientation = LinearLayout.VERTICAL
         layout.gravity = Gravity.CENTER
         layout.setPadding(40, 40, 40, 40)
 
         val titulo = TextView(this)
-
         titulo.text = "BRIGADA DE VALIDADE"
         titulo.textSize = 28f
         titulo.gravity = Gravity.CENTER
@@ -101,41 +93,28 @@ class MainActivity : Activity() {
         layout.addView(
             titulo,
             LinearLayout.LayoutParams(
-                -1,
-                -2
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
             )
         )
 
-        adicionarBotaoPrincipal(
-            layout,
-            "ESCANEAR PRODUTO"
-        ) {
+        adicionarBotaoPrincipal(layout, "ESCANEAR PRODUTO") {
             abrirScanner()
         }
 
-        adicionarBotaoPrincipal(
-            layout,
-            "PRODUTOS CADASTRADOS"
-        ) {
+        adicionarBotaoPrincipal(layout, "PRODUTOS CADASTRADOS") {
             mostrarProdutosCadastrados()
         }
 
-        adicionarBotaoPrincipal(
-            layout,
-            "BRIGADA 60 DIAS"
-        ) {
+        adicionarBotaoPrincipal(layout, "BRIGADA 60 DIAS") {
             mostrarBrigada(60)
         }
 
-        adicionarBotaoPrincipal(
-            layout,
-            "BRIGADA 30 DIAS"
-        ) {
+        adicionarBotaoPrincipal(layout, "BRIGADA 30 DIAS") {
             mostrarBrigada(30)
         }
 
         status = TextView(this)
-
         status.text = ""
         status.textSize = 15f
         status.gravity = Gravity.CENTER
@@ -143,8 +122,8 @@ class MainActivity : Activity() {
         layout.addView(
             status,
             LinearLayout.LayoutParams(
-                -1,
-                -2
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
             )
         )
 
@@ -157,55 +136,36 @@ class MainActivity : Activity() {
         acao: () -> Unit
     ) {
         val botao = Button(this)
-
         botao.text = texto
         botao.textSize = 17f
-
         val parametros = LinearLayout.LayoutParams(
-            -1,
-            -2
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
         )
-
-        parametros.setMargins(
-            0,
-            15,
-            0,
-            15
-        )
+        parametros.setMargins(0, 15, 0, 15)
 
         botao.setOnClickListener {
             acao()
         }
 
-        layout.addView(
-            botao,
-            parametros
-        )
+        layout.addView(botao, parametros)
     }
 
     private fun abrirScanner() {
-        val options =
-            GmsBarcodeScannerOptions.Builder()
-                .setBarcodeFormats(
-                    Barcode.FORMAT_EAN_13,
-                    Barcode.FORMAT_EAN_8,
-                    Barcode.FORMAT_UPC_A,
-                    Barcode.FORMAT_UPC_E
-                )
-                .build()
-
-        val scanner =
-            GmsBarcodeScanning.getClient(
-                this,
-                options
+        val options = GmsBarcodeScannerOptions.Builder()
+            .setBarcodeFormats(
+                Barcode.FORMAT_EAN_13,
+                Barcode.FORMAT_EAN_8,
+                Barcode.FORMAT_UPC_A,
+                Barcode.FORMAT_UPC_E
             )
+            .build()
+
+        val scanner = GmsBarcodeScanning.getClient(this, options)
 
         scanner.startScan()
             .addOnSuccessListener { barcode ->
-
-                codigoAtual =
-                    barcode.rawValue ?: ""
-
+                codigoAtual = barcode.rawValue ?: ""
                 if (codigoAtual.isBlank()) {
                     mostrarCadastro("")
                 } else {
@@ -213,597 +173,274 @@ class MainActivity : Activity() {
                 }
             }
             .addOnCanceledListener {
-
                 if (::status.isInitialized) {
                     status.text = "Leitura cancelada"
                 }
             }
             .addOnFailureListener {
-
                 if (::status.isInitialized) {
                     status.text = "Erro ao ler código"
                 }
             }
     }
 
-    private fun consultarProduto(
-        codigo: String
-    ) {
+    private fun consultarProduto(codigo: String) {
         status.text = "Consultando produto..."
-
-        val executor =
-            Executors.newSingleThreadExecutor()
-
+        val executor = Executors.newSingleThreadExecutor()
         executor.execute {
-
-            val nomeCatalogo =
-                consultarCatalogoLocal(codigo)
-
+            val nomeCatalogo = consultarCatalogoLocal(codigo)
             if (nomeCatalogo.isNotBlank()) {
-
                 runOnUiThread {
                     mostrarCadastro(nomeCatalogo)
                 }
-
                 executor.shutdown()
                 return@execute
             }
 
             try {
-
-                val url =
-                    URL(
-                        "https://kodebar.korvensistemas.com.br/gtin/lookup?gtin=$codigo"
-                    )
-
-                val conexao =
-                    url.openConnection() as HttpURLConnection
-
+                val url = URL("https://kodebar.korvensistemas.com.br/gtin/lookup?gtin=$codigo")
+                val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "GET"
                 conexao.connectTimeout = 15000
                 conexao.readTimeout = 15000
+                conexao.setRequestProperty("X-API-Key", BuildConfig.KODEBAR_API_KEY)
 
-                conexao.setRequestProperty(
-                    "X-API-Key",
-                    BuildConfig.KODEBAR_API_KEY
-                )
+                val codigoHttp = conexao.responseCode
 
-                val codigoHttp =
-                    conexao.responseCode
-
-                if (
-                    codigoHttp ==
-                    HttpURLConnection.HTTP_OK
-                ) {
-
-                    val resposta =
-                        conexao.inputStream
-                            .bufferedReader()
-                            .use {
-                                it.readText()
-                            }
-
+                if (codigoHttp == HttpURLConnection.HTTP_OK) {
+                    val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
                     conexao.disconnect()
 
-                    val json =
-                        JSONObject(resposta)
+                    val json = JSONObject(resposta)
+                    val nome = json.optString("nome", "")
+                    val marca = json.optString("marca", "")
 
-                    val nome =
-                        json.optString(
-                            "nome",
-                            ""
-                        )
-
-                    val marca =
-                        json.optString(
-                            "marca",
-                            ""
-                        )
-
-                    val nomeFinal =
-                        when {
-                            nome.isNotBlank() &&
-                                marca.isNotBlank() ->
-                                "$nome - $marca"
-
-                            nome.isNotBlank() ->
-                                nome
-
-                            else ->
-                                ""
-                        }
+                    val nomeFinal = when {
+                        nome.isNotBlank() && marca.isNotBlank() -> "$nome - $marca"
+                        nome.isNotBlank() -> nome
+                        else -> ""
+                    }
 
                     if (nomeFinal.isNotBlank()) {
-
-                        salvarCatalogo(
-                            codigo,
-                            nomeFinal
-                        )
-
+                        salvarCatalogo(codigo, nomeFinal)
                         runOnUiThread {
                             mostrarCadastro(nomeFinal)
                         }
-
                     } else {
-
-                        consultarOpenFoodFacts(
-                            codigo
-                        )
+                        consultarOpenFoodFacts(codigo)
                     }
-
                 } else {
-
                     conexao.disconnect()
-
-                    consultarOpenFoodFacts(
-                        codigo
-                    )
+                    consultarOpenFoodFacts(codigo)
                 }
-
             } catch (_: Exception) {
-
-                consultarOpenFoodFacts(
-                    codigo
-                )
+                consultarOpenFoodFacts(codigo)
             }
         }
     }
 
-    private fun consultarCatalogoLocal(
-        codigo: String
-    ): String {
-
-        val db =
-            openOrCreateDatabase(
-                "validade.db",
-                MODE_PRIVATE,
-                null
-            )
-
-        val cursor =
-            db.rawQuery(
-                """
-                SELECT produto
-                FROM catalogo_produtos
-                WHERE codigo_barras = ?
-                LIMIT 1
-                """.trimIndent(),
-                arrayOf(codigo)
-            )
+    private fun consultarCatalogoLocal(codigo: String): String {
+        val db = openOrCreateDatabase("validade.db", MODE_PRIVATE, null)
+        val cursor = db.rawQuery(
+            """
+            SELECT produto FROM catalogo_produtos
+            WHERE codigo_barras = ? LIMIT 1
+            """.trimIndent(),
+            arrayOf(codigo)
+        )
 
         var resultado = ""
-
         if (cursor.moveToFirst()) {
-            resultado =
-                cursor.getString(0)
+            resultado = cursor.getString(0)
         }
 
         cursor.close()
         db.close()
-
         return resultado
     }
 
-    private fun salvarCatalogo(
-        codigo: String,
-        produto: String
-    ) {
-        val db =
-            openOrCreateDatabase(
-                "validade.db",
-                MODE_PRIVATE,
-                null
-            )
-
+    private fun salvarCatalogo(codigo: String, produto: String) {
+        val db = openOrCreateDatabase("validade.db", MODE_PRIVATE, null)
         db.execSQL(
             """
-            INSERT OR REPLACE INTO catalogo_produtos
-            (codigo_barras, produto)
+            INSERT OR REPLACE INTO catalogo_produtos (codigo_barras, produto)
             VALUES (?, ?)
             """.trimIndent(),
-            arrayOf(
-                codigo,
-                produto
-            )
+            arrayOf(codigo, produto)
         )
-
         db.close()
     }
 
-    private fun consultarOpenFoodFacts(
-        codigo: String
-    ) {
+    private fun consultarOpenFoodFacts(codigo: String) {
         runOnUiThread {
-            status.text =
-                "Produto não encontrado automaticamente. Informe o nome."
+            status.text = "Produto não encontrado automaticamente. Informe o nome."
         }
 
-        Executors.newSingleThreadExecutor()
-            .execute {
+        Executors.newSingleThreadExecutor().execute {
+            try {
+                val url = URL(
+                    "https://world.openfoodfacts.org/api/v3/product/" +
+                        "$codigo.json?fields=code,product_name,product_name_pt,brands,quantity"
+                )
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.requestMethod = "GET"
+                conexao.connectTimeout = 15000
+                conexao.readTimeout = 15000
+                conexao.setRequestProperty("User-Agent", "BrigadaDeValidade/0.5 (Android)")
 
-                try {
+                val codigoHttp = conexao.responseCode
+                if (codigoHttp == HttpURLConnection.HTTP_OK) {
+                    val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
+                    conexao.disconnect()
 
-                    val url =
-                        URL(
-                            "https://world.openfoodfacts.org/api/v3/product/" +
-                                "$codigo.json?fields=code,product_name," +
-                                "product_name_pt,brands,quantity"
-                        )
+                    val json = JSONObject(resposta)
+                    var nome = ""
 
-                    val conexao =
-                        url.openConnection() as HttpURLConnection
-
-                    conexao.requestMethod = "GET"
-                    conexao.connectTimeout = 15000
-                    conexao.readTimeout = 15000
-
-                    conexao.setRequestProperty(
-                        "User-Agent",
-                        "BrigadaDeValidade/0.5 (Android)"
-                    )
-
-                    val codigoHttp =
-                        conexao.responseCode
-
-                    if (
-                        codigoHttp ==
-                        HttpURLConnection.HTTP_OK
-                    ) {
-
-                        val resposta =
-                            conexao.inputStream
-                                .bufferedReader()
-                                .use {
-                                    it.readText()
-                                }
-
-                        conexao.disconnect()
-
-                        val json =
-                            JSONObject(resposta)
-
-                        var nome = ""
-
-                        if (
-                            json.optInt(
-                                "status",
-                                0
-                            ) == 1
-                        ) {
-
-                            val produto =
-                                json.optJSONObject(
-                                    "product"
-                                )
-
-                            if (produto != null) {
-
-                                nome =
-                                    produto.optString(
-                                        "product_name_pt",
-                                        ""
-                                    )
-
-                                if (nome.isBlank()) {
-                                    nome =
-                                        produto.optString(
-                                            "product_name",
-                                            ""
-                                        )
-                                }
-
-                                val marca =
-                                    produto.optString(
-                                        "brands",
-                                        ""
-                                    )
-
-                                if (
-                                    nome.isNotBlank() &&
-                                    marca.isNotBlank()
-                                ) {
-                                    nome =
-                                        "$nome - $marca"
-                                }
+                    if (json.optInt("status", 0) == 1) {
+                        val produto = json.optJSONObject("product")
+                        if (produto != null) {
+                            nome = produto.optString("product_name_pt", "")
+                            if (nome.isBlank()) {
+                                nome = produto.optString("product_name", "")
                             }
-                        }
-
-                        if (nome.isNotBlank()) {
-
-                            salvarCatalogo(
-                                codigo,
-                                nome
-                            )
-                        }
-
-                        runOnUiThread {
-                            mostrarCadastro(nome)
-                        }
-
-                    } else {
-
-                        conexao.disconnect()
-
-                        runOnUiThread {
-                            mostrarCadastro("")
+                            val marca = produto.optString("brands", "")
+                            if (nome.isNotBlank() && marca.isNotBlank()) {
+                                nome = "$nome - $marca"
+                            }
                         }
                     }
 
-                } catch (_: Exception) {
+                    if (nome.isNotBlank()) {
+                        salvarCatalogo(codigo, nome)
+                    }
 
+                    runOnUiThread {
+                        mostrarCadastro(nome)
+                    }
+                } else {
+                    conexao.disconnect()
                     runOnUiThread {
                         mostrarCadastro("")
                     }
                 }
+            } catch (_: Exception) {
+                runOnUiThread {
+                    mostrarCadastro("")
+                }
             }
+        }
     }
 
-    private fun mostrarCadastro(
-        nomeEncontrado: String
-    ) {
-        val layout =
-            criarLayoutInterno(
-                if (nomeEncontrado.isNotBlank()) {
-                    "PRODUTO ENCONTRADO"
-                } else {
-                    "PRODUTO NÃO ENCONTRADO"
-                }
-            )
-
-        val codigo = TextView(this)
-
-        codigo.text =
-            "Código de barras: $codigoAtual"
-
-        codigo.textSize = 16f
-
-        layout.addView(codigo)
-
-        nomeProduto =
-            EditText(this)
-
-        nomeProduto.hint =
-            "Nome do produto"
-
-        nomeProduto.setText(
-            nomeEncontrado
+    private fun mostrarCadastro(nomeEncontrado: String) {
+        val layout = criarLayoutInterno(
+            if (nomeEncontrado.isNotBlank()) {
+                "PRODUTO ENCONTRADO"
+            } else {
+                "PRODUTO NÃO ENCONTRADO"
+            }
         )
 
+        val codigo = TextView(this)
+        codigo.text = "Código de barras: $codigoAtual"
+        codigo.textSize = 16f
+        layout.addView(codigo)
+
+        nomeProduto = EditText(this)
+        nomeProduto.hint = "Nome do produto"
+        nomeProduto.setText(nomeEncontrado)
         layout.addView(nomeProduto)
 
-        quantidade =
-            EditText(this)
-
-        quantidade.hint =
-            "Quantidade"
-
+        quantidade = EditText(this)
+        quantidade.hint = "Quantidade"
         quantidade.inputType = 2
-
         layout.addView(quantidade)
 
-        validade =
-            EditText(this)
-
-        validade.hint =
-            "Validade (DD/MM/AAAA)"
-
+        validade = EditText(this)
+        validade.hint = "Validade (DD/MM/AAAA)"
         validade.inputType = 2
-
-        validade.filters =
-            arrayOf(
-                InputFilter.LengthFilter(10)
-            )
-
+        validade.filters = arrayOf(InputFilter.LengthFilter(10))
         configurarMascaraData()
-
         layout.addView(validade)
 
-        val salvar =
-            Button(this)
-
-        salvar.text =
-            "SALVAR PRODUTO"
-
+        val salvar = Button(this)
+        salvar.text = "SALVAR PRODUTO"
         salvar.setOnClickListener {
             salvarProduto()
         }
-
         layout.addView(salvar)
 
-        adicionarBotaoVoltar(
-            layout
-        )
-
+        adicionarBotaoVoltar(layout)
         setContentView(layout)
     }
 
     private fun configurarMascaraData() {
+        validade.addTextChangedListener(object : TextWatcher {
+            private var alterando = false
 
-        validade.addTextChangedListener(
-            object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
 
-                private var alterando = false
-
-                override fun beforeTextChanged(
-                    s: CharSequence?,
-                    start: Int,
-                    count: Int,
-                    after: Int
-                ) {
+            override fun afterTextChanged(s: Editable?) {
+                if (alterando || s == null) {
+                    return
                 }
 
-                override fun onTextChanged(
-                    s: CharSequence?,
-                    start: Int,
-                    before: Int,
-                    count: Int
-                ) {
+                val numeros = s.toString().replace("/", "").filter { it.isDigit() }
+                if (numeros.length > 8) {
+                    return
                 }
 
-                override fun afterTextChanged(
-                    s: Editable?
-                ) {
-
-                    if (
-                        alterando ||
-                        s == null
-                    ) {
-                        return
+                val formatado = StringBuilder()
+                for (i in numeros.indices) {
+                    if (i == 2 || i == 4) {
+                        formatado.append("/")
                     }
+                    formatado.append(numeros[i])
+                }
 
-                    val numeros =
-                        s.toString()
-                            .replace(
-                                "/",
-                                ""
-                            )
-                            .filter {
-                                it.isDigit()
-                            }
-
-                    if (numeros.length > 8) {
-                        return
-                    }
-
-                    val formatado =
-                        StringBuilder()
-
-                    for (i in numeros.indices) {
-
-                        if (
-                            i == 2 ||
-                            i == 4
-                        ) {
-                            formatado.append("/")
-                        }
-
-                        formatado.append(
-                            numeros[i]
-                        )
-                    }
-
-                    val novoTexto =
-                        formatado.toString()
-
-                    if (
-                        novoTexto !=
-                        s.toString()
-                    ) {
-
-                        alterando = true
-
-                        validade.setText(
-                            novoTexto
-                        )
-
-                        validade.setSelection(
-                            novoTexto.length
-                        )
-
-                        alterando = false
-                    }
+                val novoTexto = formatado.toString()
+                if (novoTexto != s.toString()) {
+                    alterando = true
+                    validade.setText(novoTexto)
+                    validade.setSelection(novoTexto.length)
+                    alterando = false
                 }
             }
-        )
+        })
     }
 
     private fun salvarProduto() {
-
-        val nome =
-            nomeProduto.text
-                .toString()
-                .trim()
-
-        val quantidadeTexto =
-            quantidade.text
-                .toString()
-                .trim()
-
-        val validadeTexto =
-            validade.text
-                .toString()
-                .trim()
+        val nome = nomeProduto.text.toString().trim()
+        val quantidadeTexto = quantidade.text.toString().trim()
+        val validadeTexto = validade.text.toString().trim()
 
         if (nome.isEmpty()) {
-
-            Toast.makeText(
-                this,
-                "Digite o nome do produto",
-                Toast.LENGTH_SHORT
-            ).show()
-
+            Toast.makeText(this, "Digite o nome do produto", Toast.LENGTH_SHORT).show()
             return
         }
 
-        val quantidadeInt =
-            quantidadeTexto.toIntOrNull()
-
-        if (
-            quantidadeInt == null ||
-            quantidadeInt <= 0
-        ) {
-
-            Toast.makeText(
-                this,
-                "Quantidade inválida",
-                Toast.LENGTH_SHORT
-            ).show()
-
+        val quantidadeInt = quantidadeTexto.toIntOrNull()
+        if (quantidadeInt == null || quantidadeInt <= 0) {
+            Toast.makeText(this, "Quantidade inválida", Toast.LENGTH_SHORT).show()
             return
         }
 
-        val validadeFormatada =
-            converterData(
-                validadeTexto
-            )
-
-        if (
-            validadeFormatada == null
-        ) {
-
-            Toast.makeText(
-                this,
-                "Data inválida. Use DD/MM/AAAA",
-                Toast.LENGTH_SHORT
-            ).show()
-
+        val validadeFormatada = converterData(validadeTexto)
+        if (validadeFormatada == null) {
+            Toast.makeText(this, "Data inválida. Use DD/MM/AAAA", Toast.LENGTH_SHORT).show()
             return
         }
 
-        salvarSQLite(
-            codigoAtual,
-            nome,
-            quantidadeInt,
-            validadeFormatada
-        )
+        salvarSQLite(codigoAtual, nome, quantidadeInt, validadeFormatada)
     }
 
-    private fun converterData(
-        data: String
-    ): String? {
-
+    private fun converterData(data: String): String? {
         return try {
-
-            val entrada =
-                SimpleDateFormat(
-                    "dd/MM/yyyy",
-                    Locale.US
-                )
-
+            val entrada = SimpleDateFormat("dd/MM/yyyy", Locale.US)
             entrada.isLenient = false
-
-            val convertida =
-                entrada.parse(data)
-
-            SimpleDateFormat(
-                "yyyy-MM-dd",
-                Locale.US
-            ).format(
-                convertida!!
-            )
-
+            val convertida = entrada.parse(data) ?: return null
+            SimpleDateFormat("yyyy-MM-dd", Locale.US).format(convertida)
         } catch (_: Exception) {
-
             null
         }
     }
@@ -814,13 +451,7 @@ class MainActivity : Activity() {
         quantidade: Int,
         validade: String
     ) {
-        val db =
-            openOrCreateDatabase(
-                "validade.db",
-                MODE_PRIVATE,
-                null
-            )
-
+        val db = openOrCreateDatabase("validade.db", MODE_PRIVATE, null)
         db.execSQL(
             """
             INSERT INTO produtos (
@@ -832,83 +463,42 @@ class MainActivity : Activity() {
             )
             VALUES (?, ?, ?, ?, ?)
             """.trimIndent(),
-            arrayOf(
-                codigo,
-                nome,
-                quantidade,
-                validade,
-                Date().toString()
-            )
+            arrayOf(codigo, nome, quantidade, validade, Date().toString())
         )
 
-        salvarCatalogo(
-            codigo,
-            nome
-        )
-
+        salvarCatalogo(codigo, nome)
         db.close()
 
-        Toast.makeText(
-            this,
-            "Produto cadastrado com sucesso",
-            Toast.LENGTH_LONG
-        ).show()
-
+        Toast.makeText(this, "Produto cadastrado com sucesso", Toast.LENGTH_LONG).show()
         mostrarTelaInicial()
     }
 
     private fun mostrarProdutosCadastrados() {
+        val layout = criarLayoutInterno("PRODUTOS CADASTRADOS")
+        val db = openOrCreateDatabase("validade.db", MODE_PRIVATE, null)
 
-        val layout =
-            criarLayoutInterno(
-                "PRODUTOS CADASTRADOS"
-            )
-
-        val db =
-            openOrCreateDatabase(
-                "validade.db",
-                MODE_PRIVATE,
-                null
-            )
-
-        val cursor =
-            db.rawQuery(
-                """
-                SELECT
-                    produto,
-                    codigo_barras,
-                    quantidade,
-                    validade
-                FROM produtos
-                WHERE situacao_geral = 'ATIVO'
-                ORDER BY validade ASC
-                """.trimIndent(),
-                null
-            )
+        val cursor = db.rawQuery(
+            """
+            SELECT
+                produto,
+                codigo_barras,
+                quantidade,
+                validade
+            FROM produtos
+            WHERE situacao_geral = 'ATIVO'
+            ORDER BY validade ASC
+            """.trimIndent(),
+            null
+        )
 
         if (!cursor.moveToFirst()) {
-
-            adicionarTexto(
-                layout,
-                "Nenhum produto cadastrado."
-            )
-
+            adicionarTexto(layout, "Nenhum produto cadastrado.")
         } else {
-
             do {
-
-                val produto =
-                    cursor.getString(0)
-
-                val codigo =
-                    cursor.getString(1)
-
-                val qtd =
-                    cursor.getInt(2)
-
-                val validade =
-                    cursor.getString(3)
-
+                val produto = cursor.getString(0)
+                val codigo = cursor.getString(1)
+                val qtd = cursor.getInt(2)
+                val validade = cursor.getString(3)
                 adicionarTexto(
                     layout,
                     "$produto\n" +
@@ -916,19 +506,13 @@ class MainActivity : Activity() {
                         "Quantidade: $qtd\n" +
                         "Validade: ${formatarDataBanco(validade)}"
                 )
-
-            } while (
-                cursor.moveToNext()
-            )
+            } while (cursor.moveToNext())
         }
 
         cursor.close()
         db.close()
 
-        adicionarBotaoVoltar(
-            layout
-        )
-
+        adicionarBotaoVoltar(layout)
         setContentView(layout)
     }
 
@@ -938,204 +522,83 @@ class MainActivity : Activity() {
         val quantidade: Int,
         val validade: String,
         val diasRestantes: Long
-    ) {
-        val texto: String
-            get() =
-                "$produto\n" +
-                    "Código: $codigo\n" +
-                    "Quantidade: $quantidade\n" +
-                    "Validade: ${formatarDataBanco(validade)}\n" +
-                    "Dias para vencer: $diasRestantes"
-    }
+    )
 
-    private fun mostrarBrigada(
-        diasMaximos: Int
-    ) {
-
-        val layout =
-            criarLayoutInterno(
-                "BRIGADA $diasMaximos DIAS"
-            )
-
-        val registros =
-            buscarBrigada(
-                diasMaximos
-            )
+    private fun mostrarBrigada(diasMaximos: Int) {
+        val layout = criarLayoutInterno("BRIGADA $diasMaximos DIAS")
+        val registros = buscarBrigada(diasMaximos)
 
         if (registros.isEmpty()) {
-
-            adicionarTexto(
-                layout,
-                "Nenhum produto dentro deste prazo."
-            )
-
+            adicionarTexto(layout, "Nenhum produto dentro deste prazo.")
         } else {
-
             for (registro in registros) {
-
-                adicionarTexto(
-                    layout,
-                    registro.texto
-                )
+                val textoCard = "${registro.produto}\n" +
+                    "Código: ${registro.codigo}\n" +
+                    "Quantidade: ${registro.quantidade}\n" +
+                    "Validade: ${formatarDataBanco(registro.validade)}\n" +
+                    "Dias para vencer: ${registro.diasRestantes}"
+                adicionarTexto(layout, textoCard)
             }
 
-            val exportar =
-                Button(this)
-
-            exportar.text =
-                "EXPORTAR PARA EXCEL"
-
+            val exportar = Button(this)
+            exportar.text = "EXPORTAR PARA EXCEL"
             exportar.setOnClickListener {
-
-                exportarBrigadaExcel(
-                    diasMaximos,
-                    registros
-                )
+                exportarBrigadaExcel(diasMaximos, registros)
             }
-
-            layout.addView(
-                exportar
-            )
+            layout.addView(exportar)
         }
 
-        adicionarBotaoVoltar(
-            layout
-        )
-
+        adicionarBotaoVoltar(layout)
         setContentView(layout)
     }
 
-    private fun buscarBrigada(
-        diasMaximos: Int
-    ): List<RegistroBrigada> {
+    private fun buscarBrigada(diasMaximos: Int): List<RegistroBrigada> {
+        val lista = mutableListOf<RegistroBrigada>()
 
-        val lista =
-            mutableListOf<RegistroBrigada>()
+        val hoje = Calendar.getInstance()
+        hoje.set(Calendar.HOUR_OF_DAY, 0)
+        hoje.set(Calendar.MINUTE, 0)
+        hoje.set(Calendar.SECOND, 0)
+        hoje.set(Calendar.MILLISECOND, 0)
 
-        val hoje =
-            Calendar.getInstance()
+        val limite = Calendar.getInstance()
+        limite.timeInMillis = hoje.timeInMillis
+        limite.add(Calendar.DAY_OF_YEAR, diasMaximos)
 
-        hoje.set(
-            Calendar.HOUR_OF_DAY,
-            0
+        val db = openOrCreateDatabase("validade.db", MODE_PRIVATE, null)
+        val cursor = db.rawQuery(
+            """
+            SELECT
+                produto,
+                codigo_barras,
+                quantidade,
+                validade
+            FROM produtos
+            WHERE situacao_geral = 'ATIVO'
+            ORDER BY validade ASC
+            """.trimIndent(),
+            null
         )
-
-        hoje.set(
-            Calendar.MINUTE,
-            0
-        )
-
-        hoje.set(
-            Calendar.SECOND,
-            0
-        )
-
-        hoje.set(
-            Calendar.MILLISECOND,
-            0
-        )
-
-        val limite =
-            Calendar.getInstance()
-
-        limite.timeInMillis =
-            hoje.timeInMillis
-
-        limite.add(
-            Calendar.DAY_OF_YEAR,
-            diasMaximos
-        )
-
-        val db =
-            openOrCreateDatabase(
-                "validade.db",
-                MODE_PRIVATE,
-                null
-            )
-
-        val cursor =
-            db.rawQuery(
-                """
-                SELECT
-                    produto,
-                    codigo_barras,
-                    quantidade,
-                    validade
-                FROM produtos
-                WHERE situacao_geral = 'ATIVO'
-                ORDER BY validade ASC
-                """.trimIndent(),
-                null
-            )
 
         if (cursor.moveToFirst()) {
-
             do {
-
-                val produto =
-                    cursor.getString(0)
-
-                val codigo =
-                    cursor.getString(1)
-
-                val quantidade =
-                    cursor.getInt(2)
-
-                val validade =
-                    cursor.getString(3)
+                val produto = cursor.getString(0)
+                val codigo = cursor.getString(1)
+                val quantidade = cursor.getInt(2)
+                val validade = cursor.getString(3)
 
                 try {
-
-                    val data =
-                        SimpleDateFormat(
-                            "yyyy-MM-dd",
-                            Locale.US
-                        ).parse(validade)
-
+                    val data = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(validade)
                     if (data != null) {
+                        val vencimento = Calendar.getInstance()
+                        vencimento.time = data
+                        vencimento.set(Calendar.HOUR_OF_DAY, 0)
+                        vencimento.set(Calendar.MINUTE, 0)
+                        vencimento.set(Calendar.SECOND, 0)
+                        vencimento.set(Calendar.MILLISECOND, 0)
 
-                        val vencimento =
-                            Calendar.getInstance()
-
-                        vencimento.time =
-                            data
-
-                        vencimento.set(
-                            Calendar.HOUR_OF_DAY,
-                            0
-                        )
-
-                        vencimento.set(
-                            Calendar.MINUTE,
-                            0
-                        )
-
-                        vencimento.set(
-                            Calendar.SECOND,
-                            0
-                        )
-
-                        vencimento.set(
-                            Calendar.MILLISECOND,
-                            0
-                        )
-
-                        if (
-                            !vencimento.before(hoje) &&
-                            !vencimento.after(limite)
-                        ) {
-
-                            val diferenca =
-                                (
-                                    vencimento.timeInMillis -
-                                        hoje.timeInMillis
-                                ) / (
-                                    24L *
-                                        60L *
-                                        60L *
-                                        1000L
-                                )
-
+                        if (!vencimento.before(hoje) && !vencimento.after(limite)) {
+                            val diferenca = (vencimento.timeInMillis - hoje.timeInMillis) / (24L * 60L * 60L * 1000L)
                             lista.add(
                                 RegistroBrigada(
                                     produto,
@@ -1147,326 +610,133 @@ class MainActivity : Activity() {
                             )
                         }
                     }
-
                 } catch (_: Exception) {
                 }
-
-            } while (
-                cursor.moveToNext()
-            )
+            } while (cursor.moveToNext())
         }
 
         cursor.close()
         db.close()
 
-        return lista.sortedBy {
-            it.diasRestantes
-        }
+        return lista.sortedBy { it.diasRestantes }
     }
 
     private fun exportarBrigadaExcel(
         diasMaximos: Int,
         registros: List<RegistroBrigada>
     ) {
+        Executors.newSingleThreadExecutor().execute {
+            try {
+                val nomeArquivo = "Brigada_${diasMaximos}_dias_" +
+                    SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date()) +
+                    ".csv"
 
-        Executors.newSingleThreadExecutor()
-            .execute {
+                val csv = StringBuilder()
+                csv.append("BRIGADA $diasMaximos DIAS\n")
+                csv.append("Gerado em:;")
+                csv.append(SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date()))
+                csv.append("\n\n")
+                csv.append("Produto;Código de barras;Quantidade;Validade;Dias para vencer\n")
 
-                try {
+                for (registro in registros) {
+                    csv.append("\"${registro.produto.replace("\"", "\"\"")}\";")
+                    csv.append("\"${registro.codigo}\";")
+                    csv.append("${registro.quantidade};")
+                    csv.append("\"${formatarDataBanco(registro.validade)}\";")
+                    csv.append("${registro.diasRestantes}\n")
+                }
 
-                    val nomeArquivo =
-                        "Brigada_${diasMaximos}_dias_" +
-                            SimpleDateFormat(
-                                "yyyyMMdd_HHmm",
-                                Locale.getDefault()
-                            ).format(Date()) +
-                            ".csv"
+                val bytes = ("\uFEFF" + csv.toString()).toByteArray(Charsets.UTF_8)
 
-                    val csv =
-                        StringBuilder()
-
-                    csv.append(
-                        "BRIGADA $diasMaximos DIAS\n"
-                    )
-
-                    csv.append(
-                        "Gerado em:;"
-                    )
-
-                    csv.append(
-                        SimpleDateFormat(
-                            "dd/MM/yyyy HH:mm",
-                            Locale.getDefault()
-                        ).format(Date())
-                    )
-
-                    csv.append(
-                        "\n\n"
-                    )
-
-                    csv.append(
-                        "Produto;Código de barras;Quantidade;Validade;Dias para vencer\n"
-                    )
-
-                    for (registro in registros) {
-
-                        csv.append(
-                            "\"${
-                                registro.produto.replace(
-                                    "\"",
-                                    "\"\""
-                                )
-                            }\";"
-                        )
-
-                        csv.append(
-                            "\"${registro.codigo}\";"
-                        )
-
-                        csv.append(
-                            "${registro.quantidade};"
-                        )
-
-                        csv.append(
-                            "\"${
-                                formatarDataBanco(
-                                    registro.validade
-                                )
-                            }\";"
-                        )
-
-                        csv.append(
-                            "${registro.diasRestantes}\n"
-                        )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val values = ContentValues().apply {
+                        put(MediaStore.Downloads.DISPLAY_NAME, nomeArquivo)
+                        put(MediaStore.Downloads.MIME_TYPE, "text/csv")
+                        put(MediaStore.Downloads.RELATIVE_PATH, "Download")
                     }
 
-                    val bytes =
-                        (
-                            "\uFEFF" +
-                                csv.toString()
-                        ).toByteArray(
-                            Charsets.UTF_8
-                        )
+                    val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                        ?: throw Exception("Não foi possível criar o arquivo no MediaStore.")
 
-                    if (
-                        android.os.Build.VERSION.SDK_INT >=
-                        android.os.Build.VERSION_CODES.Q
-                    ) {
-
-                        val values =
-                            ContentValues().apply {
-
-                                put(
-                                    MediaStore.Downloads.DISPLAY_NAME,
-                                    nomeArquivo
-                                )
-
-                                put(
-                                    MediaStore.Downloads.MIME_TYPE,
-                                    "text/csv"
-                                )
-
-                                put(
-                                    MediaStore.Downloads.RELATIVE_PATH,
-                                    "Download"
-                                )
-                            }
-
-                        val uri =
-                            contentResolver.insert(
-                                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                                values
-                            )
-
-                        if (uri == null) {
-                            throw Exception(
-                                "Não foi possível criar o arquivo."
-                            )
+                    contentResolver.openOutputStream(uri).use { saida ->
+                        if (saida == null) {
+                            throw Exception("Não foi possível gravar o arquivo.")
                         }
-
-                        contentResolver
-                            .openOutputStream(uri)
-                            .use { saida ->
-
-                                if (saida == null) {
-                                    throw Exception(
-                                        "Não foi possível gravar o arquivo."
-                                    )
-                                }
-
-                                saida.write(bytes)
-                            }
-
-                        runOnUiThread {
-                            compartilharArquivo(
-                                uri,
-                                nomeArquivo
-                            )
-                        }
-
-                    } else {
-
-                        runOnUiThread {
-
-                            Toast.makeText(
-                                this,
-                                "A exportação requer Android 10 ou superior.",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
+                        saida.write(bytes)
                     }
-
-                } catch (e: Exception) {
 
                     runOnUiThread {
-
+                        compartilharArquivo(uri, nomeArquivo)
+                    }
+                } else {
+                    runOnUiThread {
                         Toast.makeText(
                             this,
-                            "Erro ao gerar arquivo: ${e.message}",
+                            "A exportação requer Android 10 ou superior.",
                             Toast.LENGTH_LONG
                         ).show()
                     }
                 }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    Toast.makeText(
+                        this,
+                        "Erro ao gerar arquivo: ${e.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
             }
+        }
     }
 
-    private fun compartilharArquivo(
-        uri: android.net.Uri,
-        nomeArquivo: String
-    ) {
+    private fun compartilharArquivo(uri: Uri, nomeArquivo: String) {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/csv"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
 
-        val intent =
-            Intent(
-                Intent.ACTION_SEND
-            )
-
-        intent.type =
-            "text/csv"
-
-        intent.putExtra(
-            Intent.EXTRA_STREAM,
-            uri
-        )
-
-        intent.addFlags(
-            Intent.FLAG_GRANT_READ_URI_PERMISSION
-        )
-
-        startActivity(
-            Intent.createChooser(
-                intent,
-                "Enviar $nomeArquivo"
-            )
-        )
+        startActivity(Intent.createChooser(intent, "Enviar $nomeArquivo"))
     }
 
-    private fun criarLayoutInterno(
-        tituloTexto: String
-    ): LinearLayout {
+    private fun criarLayoutInterno(tituloTexto: String): LinearLayout {
+        val layout = LinearLayout(this)
+        layout.orientation = LinearLayout.VERTICAL
+        layout.setPadding(30, 30, 30, 30)
 
-        val layout =
-            LinearLayout(this)
-
-        layout.orientation =
-            LinearLayout.VERTICAL
-
-        layout.setPadding(
-            30,
-            30,
-            30,
-            30
-        )
-
-        val titulo =
-            TextView(this)
-
-        titulo.text =
-            tituloTexto
-
-        titulo.textSize =
-            24f
-
-        titulo.gravity =
-            Gravity.CENTER
-
-        layout.addView(
-            titulo
-        )
+        val titulo = TextView(this)
+        titulo.text = tituloTexto
+        titulo.textSize = 24f
+        titulo.gravity = Gravity.CENTER
+        layout.addView(titulo)
 
         return layout
     }
 
-    private fun adicionarTexto(
-        layout: LinearLayout,
-        texto: String
-    ) {
-
-        val campo =
-            TextView(this)
-
-        campo.text =
-            texto
-
-        campo.textSize =
-            16f
-
-        campo.setPadding(
-            10,
-            15,
-            10,
-            15
-        )
-
-        layout.addView(
-            campo
-        )
+    private fun adicionarTexto(layout: LinearLayout, texto: String) {
+        val campo = TextView(this)
+        campo.text = texto
+        campo.textSize = 16f
+        campo.setPadding(10, 15, 10, 15)
+        layout.addView(campo)
     }
 
-    private fun adicionarBotaoVoltar(
-        layout: LinearLayout
-    ) {
-
-        val voltar =
-            Button(this)
-
-        voltar.text =
-            "VOLTAR"
-
+    private fun adicionarBotaoVoltar(layout: LinearLayout) {
+        val voltar = Button(this)
+        voltar.text = "VOLTAR"
         voltar.setOnClickListener {
             mostrarTelaInicial()
         }
-
-        layout.addView(
-            voltar
-        )
+        layout.addView(voltar)
     }
 
-    private fun formatarDataBanco(
-        data: String
-    ): String {
-
+    private fun formatarDataBanco(data: String): String {
         return try {
-
-            val entrada =
-                SimpleDateFormat(
-                    "yyyy-MM-dd",
-                    Locale.US
-                )
-
+            val entrada = SimpleDateFormat("yyyy-MM-dd", Locale.US)
             entrada.isLenient = false
-
-            val convertida =
-                entrada.parse(data)
-
-            SimpleDateFormat(
-                "dd/MM/yyyy",
-                Locale.getDefault()
-            ).format(
-                convertida!!
-            )
-
+            val convertida = entrada.parse(data) ?: return data
+            SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(convertida)
         } catch (_: Exception) {
-
             data
         }
     }
