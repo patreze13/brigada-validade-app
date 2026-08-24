@@ -3,6 +3,9 @@ package com.patreze.brigadadevalidade
 import android.app.Activity
 import android.content.ContentValues
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -11,11 +14,7 @@ import android.text.Editable
 import android.text.InputFilter
 import android.text.TextWatcher
 import android.view.Gravity
-import android.widget.Button
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
@@ -35,6 +34,16 @@ class MainActivity : Activity() {
     private lateinit var quantidade: EditText
     private lateinit var validade: EditText
     private lateinit var status: TextView
+
+    // Paleta de Cores Dark Mode
+    private val corFundoApp = Color.parseColor("#121212")
+    private val corCardFundo = Color.parseColor("#1E1E1E")
+    private val corBordaBranca = Color.parseColor("#FFFFFF")
+    private val corTextoPrincipal = Color.parseColor("#FFFFFF")
+    private val corTextoSecundario = Color.parseColor("#B0BEC5")
+    private val corCriticaVermelha = Color.parseColor("#FF5252")
+    private val corCriticaAmarela = Color.parseColor("#FFB300")
+    private val corCriticaVerde = Color.parseColor("#69F0AE")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -80,23 +89,28 @@ class MainActivity : Activity() {
     }
 
     private fun mostrarTelaInicial() {
-        val layout = LinearLayout(this)
-        layout.orientation = LinearLayout.VERTICAL
-        layout.gravity = Gravity.CENTER
-        layout.setPadding(40, 40, 40, 40)
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(corFundoApp)
+            setPadding(40, 60, 40, 60)
+        }
 
-        val titulo = TextView(this)
-        titulo.text = "BRIGADA DE VALIDADE"
-        titulo.textSize = 28f
-        titulo.gravity = Gravity.CENTER
+        val titulo = TextView(this).apply {
+            text = "BRIGADA DE VALIDADE"
+            textSize = 26f
+            setTextColor(corTextoPrincipal)
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+        }
 
-        layout.addView(
-            titulo,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
+        val paramsTitulo = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            bottomMargin = 50
+        }
+        layout.addView(titulo, paramsTitulo)
 
         adicionarBotaoPrincipal(layout, "ESCANEAR PRODUTO") {
             abrirScanner()
@@ -114,18 +128,20 @@ class MainActivity : Activity() {
             mostrarBrigada(30)
         }
 
-        status = TextView(this)
-        status.text = ""
-        status.textSize = 15f
-        status.gravity = Gravity.CENTER
+        status = TextView(this).apply {
+            text = ""
+            textSize = 14f
+            setTextColor(corTextoSecundario)
+            gravity = Gravity.CENTER
+        }
 
-        layout.addView(
-            status,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
+        val paramsStatus = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            topMargin = 30
+        }
+        layout.addView(status, paramsStatus)
 
         setContentView(layout)
     }
@@ -135,17 +151,23 @@ class MainActivity : Activity() {
         texto: String,
         acao: () -> Unit
     ) {
-        val botao = Button(this)
-        botao.text = texto
-        botao.textSize = 17f
+        val botao = Button(this).apply {
+            text = texto
+            textSize = 16f
+            setTextColor(Color.BLACK)
+            typeface = Typeface.DEFAULT_BOLD
+            background = GradientDrawable().apply {
+                setColor(corBordaBranca)
+                cornerRadius = 16f
+            }
+            setOnClickListener { acao() }
+        }
+
         val parametros = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
-        )
-        parametros.setMargins(0, 15, 0, 15)
-
-        botao.setOnClickListener {
-            acao()
+        ).apply {
+            setMargins(0, 15, 0, 15)
         }
 
         layout.addView(botao, parametros)
@@ -332,45 +354,103 @@ class MainActivity : Activity() {
     }
 
     private fun mostrarCadastro(nomeEncontrado: String) {
-        val layout = criarLayoutInterno(
-            if (nomeEncontrado.isNotBlank()) {
-                "PRODUTO ENCONTRADO"
-            } else {
-                "PRODUTO NÃO ENCONTRADO"
-            }
-        )
-
-        val codigo = TextView(this)
-        codigo.text = "Código de barras: $codigoAtual"
-        codigo.textSize = 16f
-        layout.addView(codigo)
-
-        nomeProduto = EditText(this)
-        nomeProduto.hint = "Nome do produto"
-        nomeProduto.setText(nomeEncontrado)
-        layout.addView(nomeProduto)
-
-        quantidade = EditText(this)
-        quantidade.hint = "Quantidade"
-        quantidade.inputType = 2
-        layout.addView(quantidade)
-
-        validade = EditText(this)
-        validade.hint = "Validade (DD/MM/AAAA)"
-        validade.inputType = 2
-        validade.filters = arrayOf(InputFilter.LengthFilter(10))
-        configurarMascaraData()
-        layout.addView(validade)
-
-        val salvar = Button(this)
-        salvar.text = "SALVAR PRODUTO"
-        salvar.setOnClickListener {
-            salvarProduto()
+        val raiz = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(corFundoApp)
+            setPadding(30, 40, 30, 30)
         }
-        layout.addView(salvar)
 
-        adicionarBotaoVoltar(layout)
-        setContentView(layout)
+        val titulo = TextView(this).apply {
+            text = if (nomeEncontrado.isNotBlank()) "PRODUTO ENCONTRADO" else "NOVO PRODUTO"
+            textSize = 22f
+            setTextColor(corTextoPrincipal)
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+        }
+        val paramsTitulo = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = 25 }
+        raiz.addView(titulo, paramsTitulo)
+
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable().apply {
+                setColor(corCardFundo)
+                setStroke(3, corBordaBranca)
+                cornerRadius = 16f
+            }
+            setPadding(30, 30, 30, 30)
+        }
+
+        val codigo = TextView(this).apply {
+            text = "Código: $codigoAtual"
+            textSize = 15f
+            setTextColor(corTextoSecundario)
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        card.addView(codigo)
+
+        nomeProduto = criarCampoTexto("Nome do produto", nomeEncontrado, 1)
+        card.addView(nomeProduto)
+
+        quantidade = criarCampoTexto("Quantidade", "", 2)
+        card.addView(quantidade)
+
+        validade = criarCampoTexto("Validade (DD/MM/AAAA)", "", 2).apply {
+            filters = arrayOf(InputFilter.LengthFilter(10))
+        }
+        configurarMascaraData()
+        card.addView(validade)
+
+        val paramsCard = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = 25 }
+        raiz.addView(card, paramsCard)
+
+        val salvar = Button(this).apply {
+            text = "SALVAR PRODUTO"
+            textSize = 16f
+            setTextColor(Color.BLACK)
+            typeface = Typeface.DEFAULT_BOLD
+            background = GradientDrawable().apply {
+                setColor(corBordaBranca)
+                cornerRadius = 14f
+            }
+            setOnClickListener { salvarProduto() }
+        }
+        val paramsSalvar = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = 15 }
+        raiz.addView(salvar, paramsSalvar)
+
+        adicionarBotaoVoltar(raiz)
+        setContentView(raiz)
+    }
+
+    private fun criarCampoTexto(dica: String, textoInicial: String, tipoInput: Int): EditText {
+        return EditText(this).apply {
+            hint = dica
+            setHintTextColor(Color.parseColor("#757575"))
+            setTextColor(corTextoPrincipal)
+            setText(textoInicial)
+            inputType = tipoInput
+            background = GradientDrawable().apply {
+                setColor(Color.BLACK)
+                setStroke(2, Color.parseColor("#444444"))
+                cornerRadius = 10f
+            }
+            setPadding(24, 24, 24, 24)
+            val params = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = 18
+            }
+            layoutParams = params
+        }
     }
 
     private fun configurarMascaraData() {
@@ -474,9 +554,10 @@ class MainActivity : Activity() {
     }
 
     private fun mostrarProdutosCadastrados() {
-        val layout = criarLayoutInterno("PRODUTOS CADASTRADOS")
-        val db = openOrCreateDatabase("validade.db", MODE_PRIVATE, null)
+        val tela = criarEstruturaRolavel("PRODUTOS CADASTRADOS")
+        val containerCards = tela.second
 
+        val db = openOrCreateDatabase("validade.db", MODE_PRIVATE, null)
         val cursor = db.rawQuery(
             """
             SELECT
@@ -492,19 +573,27 @@ class MainActivity : Activity() {
         )
 
         if (!cursor.moveToFirst()) {
-            adicionarTexto(layout, "Nenhum produto cadastrado.")
+            val vazio = TextView(this).apply {
+                text = "Nenhum produto cadastrado."
+                setTextColor(corTextoSecundario)
+                textSize = 16f
+                gravity = Gravity.CENTER
+            }
+            containerCards.addView(vazio)
         } else {
             do {
                 val produto = cursor.getString(0)
                 val codigo = cursor.getString(1)
                 val qtd = cursor.getInt(2)
                 val validade = cursor.getString(3)
-                adicionarTexto(
-                    layout,
-                    "$produto\n" +
-                        "Código: $codigo\n" +
-                        "Quantidade: $qtd\n" +
-                        "Validade: ${formatarDataBanco(validade)}"
+
+                adicionarCardProduto(
+                    containerCards,
+                    produto,
+                    codigo,
+                    qtd,
+                    formatarDataBanco(validade),
+                    null
                 )
             } while (cursor.moveToNext())
         }
@@ -512,8 +601,8 @@ class MainActivity : Activity() {
         cursor.close()
         db.close()
 
-        adicionarBotaoVoltar(layout)
-        setContentView(layout)
+        adicionarBotaoVoltar(containerCards)
+        setContentView(tela.first)
     }
 
     private data class RegistroBrigada(
@@ -525,45 +614,71 @@ class MainActivity : Activity() {
     )
 
     private fun mostrarBrigada(diasMaximos: Int) {
-        val layout = criarLayoutInterno("BRIGADA $diasMaximos DIAS")
+        val tela = criarEstruturaRolavel("BRIGADA $diasMaximos DIAS")
+        val containerCards = tela.second
         val registros = buscarBrigada(diasMaximos)
 
         if (registros.isEmpty()) {
-            adicionarTexto(layout, "Nenhum produto dentro deste prazo.")
+            val vazio = TextView(this).apply {
+                text = "Nenhum produto dentro deste prazo."
+                setTextColor(corTextoSecundario)
+                textSize = 16f
+                gravity = Gravity.CENTER
+            }
+            containerCards.addView(vazio)
         } else {
             for (registro in registros) {
-                val textoCard = "${registro.produto}\n" +
-                    "Código: ${registro.codigo}\n" +
-                    "Quantidade: ${registro.quantidade}\n" +
-                    "Validade: ${formatarDataBanco(registro.validade)}\n" +
-                    "Dias para vencer: ${registro.diasRestantes}"
-                adicionarTexto(layout, textoCard)
+                adicionarCardProduto(
+                    containerCards,
+                    registro.produto,
+                    registro.codigo,
+                    registro.quantidade,
+                    formatarDataBanco(registro.validade),
+                    registro.diasRestantes
+                )
             }
 
-            val exportar = Button(this)
-            exportar.text = "EXPORTAR PARA EXCEL"
-            exportar.setOnClickListener {
-                exportarBrigadaExcel(diasMaximos, registros)
+            val exportar = Button(this).apply {
+                text = "EXPORTAR PARA EXCEL (CSV)"
+                textSize = 16f
+                setTextColor(Color.BLACK)
+                typeface = Typeface.DEFAULT_BOLD
+                background = GradientDrawable().apply {
+                    setColor(corBordaBranca)
+                    cornerRadius = 14f
+                }
+                setOnClickListener {
+                    exportarBrigadaExcel(diasMaximos, registros)
+                }
             }
-            layout.addView(exportar)
+            val paramsExportar = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = 15
+                bottomMargin = 15
+            }
+            containerCards.addView(exportar, paramsExportar)
         }
 
-        adicionarBotaoVoltar(layout)
-        setContentView(layout)
+        adicionarBotaoVoltar(containerCards)
+        setContentView(tela.first)
     }
 
     private fun buscarBrigada(diasMaximos: Int): List<RegistroBrigada> {
         val lista = mutableListOf<RegistroBrigada>()
 
-        val hoje = Calendar.getInstance()
-        hoje.set(Calendar.HOUR_OF_DAY, 0)
-        hoje.set(Calendar.MINUTE, 0)
-        hoje.set(Calendar.SECOND, 0)
-        hoje.set(Calendar.MILLISECOND, 0)
+        val hoje = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
 
-        val limite = Calendar.getInstance()
-        limite.timeInMillis = hoje.timeInMillis
-        limite.add(Calendar.DAY_OF_YEAR, diasMaximos)
+        val limite = Calendar.getInstance().apply {
+            timeInMillis = hoje.timeInMillis
+            add(Calendar.DAY_OF_YEAR, diasMaximos)
+        }
 
         val db = openOrCreateDatabase("validade.db", MODE_PRIVATE, null)
         val cursor = db.rawQuery(
@@ -590,12 +705,13 @@ class MainActivity : Activity() {
                 try {
                     val data = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(validade)
                     if (data != null) {
-                        val vencimento = Calendar.getInstance()
-                        vencimento.time = data
-                        vencimento.set(Calendar.HOUR_OF_DAY, 0)
-                        vencimento.set(Calendar.MINUTE, 0)
-                        vencimento.set(Calendar.SECOND, 0)
-                        vencimento.set(Calendar.MILLISECOND, 0)
+                        val vencimento = Calendar.getInstance().apply {
+                            time = data
+                            set(Calendar.HOUR_OF_DAY, 0)
+                            set(Calendar.MINUTE, 0)
+                            set(Calendar.SECOND, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }
 
                         if (!vencimento.before(hoje) && !vencimento.after(limite)) {
                             val diferenca = (vencimento.timeInMillis - hoje.timeInMillis) / (24L * 60L * 60L * 1000L)
@@ -619,6 +735,141 @@ class MainActivity : Activity() {
         db.close()
 
         return lista.sortedBy { it.diasRestantes }
+    }
+
+    private fun adicionarCardProduto(
+        container: LinearLayout,
+        nome: String,
+        codigo: String,
+        quantidade: Int,
+        validadeTexto: String,
+        diasRestantes: Long?
+    ) {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable().apply {
+                setColor(corCardFundo)
+                setStroke(2, corBordaBranca)
+                cornerRadius = 14f
+            }
+            setPadding(30, 24, 30, 24)
+        }
+
+        val txtNome = TextView(this).apply {
+            text = nome
+            textSize = 17f
+            setTextColor(corTextoPrincipal)
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        card.addView(txtNome)
+
+        val txtCodigo = TextView(this).apply {
+            text = "Código: $codigo  |  Qtd: $quantidade"
+            textSize = 14f
+            setTextColor(corTextoSecundario)
+            setPadding(0, 6, 0, 4)
+        }
+        card.addView(txtCodigo)
+
+        val txtValidade = TextView(this).apply {
+            text = "Validade: $validadeTexto"
+            textSize = 15f
+            typeface = Typeface.DEFAULT_BOLD
+
+            if (diasRestantes != null) {
+                val corAlerta = when {
+                    diasRestantes <= 10 -> corCriticaVermelha
+                    diasRestantes <= 30 -> corCriticaAmarela
+                    else -> corCriticaVerde
+                }
+                setTextColor(corAlerta)
+                text = "Validade: $validadeTexto ($diasRestantes dias restantes)"
+            } else {
+                setTextColor(corTextoPrincipal)
+            }
+        }
+        card.addView(txtValidade)
+
+        val paramsCard = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            setMargins(0, 10, 0, 14)
+        }
+
+        container.addView(card, paramsCard)
+    }
+
+    private fun criarEstruturaRolavel(tituloTexto: String): Pair<LinearLayout, LinearLayout> {
+        val layoutRaiz = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(corFundoApp)
+            setPadding(30, 40, 30, 20)
+        }
+
+        val titulo = TextView(this).apply {
+            text = tituloTexto
+            textSize = 22f
+            setTextColor(corTextoPrincipal)
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+        }
+        val paramsTitulo = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = 20 }
+        layoutRaiz.addView(titulo, paramsTitulo)
+
+        val scrollView = ScrollView(this).apply {
+            isFillViewport = true
+        }
+
+        val containerInterno = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        scrollView.addView(
+            containerInterno,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        )
+
+        val paramsScroll = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            0,
+            1f
+        )
+        layoutRaiz.addView(scrollView, paramsScroll)
+
+        return Pair(layoutRaiz, containerInterno)
+    }
+
+    private fun adicionarBotaoVoltar(layout: LinearLayout) {
+        val voltar = Button(this).apply {
+            text = "VOLTAR"
+            textSize = 16f
+            setTextColor(Color.BLACK)
+            typeface = Typeface.DEFAULT_BOLD
+            background = GradientDrawable().apply {
+                setColor(corBordaBranca)
+                cornerRadius = 14f
+            }
+            setOnClickListener {
+                mostrarTelaInicial()
+            }
+        }
+
+        val params = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            topMargin = 15
+            bottomMargin = 15
+        }
+
+        layout.addView(voltar, params)
     }
 
     private fun exportarBrigadaExcel(
@@ -697,37 +948,6 @@ class MainActivity : Activity() {
         }
 
         startActivity(Intent.createChooser(intent, "Enviar $nomeArquivo"))
-    }
-
-    private fun criarLayoutInterno(tituloTexto: String): LinearLayout {
-        val layout = LinearLayout(this)
-        layout.orientation = LinearLayout.VERTICAL
-        layout.setPadding(30, 30, 30, 30)
-
-        val titulo = TextView(this)
-        titulo.text = tituloTexto
-        titulo.textSize = 24f
-        titulo.gravity = Gravity.CENTER
-        layout.addView(titulo)
-
-        return layout
-    }
-
-    private fun adicionarTexto(layout: LinearLayout, texto: String) {
-        val campo = TextView(this)
-        campo.text = texto
-        campo.textSize = 16f
-        campo.setPadding(10, 15, 10, 15)
-        layout.addView(campo)
-    }
-
-    private fun adicionarBotaoVoltar(layout: LinearLayout) {
-        val voltar = Button(this)
-        voltar.text = "VOLTAR"
-        voltar.setOnClickListener {
-            mostrarTelaInicial()
-        }
-        layout.addView(voltar)
     }
 
     private fun formatarDataBanco(data: String): String {
