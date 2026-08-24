@@ -1673,13 +1673,26 @@ class MainActivity : Activity() {
             data
         }
     }
+}
+
 
     private fun formatarDataExterna(
         data: String
     ): String {
+        return try {
+            val entrada = SimpleDateFormat(
+                "yyyy-MM-dd",
+                Locale.US
+            )
 
-        return formatarDataBanco(
+            val convertida = entrada.parse(data)
+
+            SimpleDateFormat(
+                "dd/MM/yyyy",
+                Locale.getDefault()
+            ).format(convertida!!)
+        } catch (_: Exception) {
             data
-        )
+        }
     }
 }
