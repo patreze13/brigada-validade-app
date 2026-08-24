@@ -1,6 +1,7 @@
 package com.patreze.brigadadevalidade
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.ContentValues
 import android.content.Intent
 import android.graphics.Color
@@ -210,22 +211,18 @@ class MainActivity : Activity() {
     private fun consultarProduto(codigo: String) {
         status.text = "Consultando produto..."
         Executors.newSingleThreadExecutor().execute {
-            // 1. Consulta no catálogo local (SQLite)
             val nomeCatalogo = consultarCatalogoLocal(codigo)
             if (nomeCatalogo.isNotBlank()) {
                 runOnUiThread { mostrarCadastro(nomeCatalogo) }
                 return@execute
             }
 
-            // 2. Tenta Open Food Facts (Alimentos, bebidas, biscoitos, salgadinhos, cervejas)
             var nomeFinal = consultarApiAberta("https://world.openfoodfacts.org/api/v2/product/$codigo.json")
 
-            // 3. Tenta Open Beauty Facts (Cosméticos, produtos de beleza, higiene pessoal)
             if (nomeFinal.isBlank()) {
                 nomeFinal = consultarApiAberta("https://world.openbeautyfacts.org/api/v2/product/$codigo.json")
             }
 
-            // 4. Tenta Open Products Facts (Outros produtos em geral)
             if (nomeFinal.isBlank()) {
                 nomeFinal = consultarApiAberta("https://world.openproductsfacts.org/api/v2/product/$codigo.json")
             }
@@ -356,7 +353,7 @@ class MainActivity : Activity() {
         validade = criarCampoTexto("Validade (DD/MM/AAAA)", "", 2).apply {
             filters = arrayOf(InputFilter.LengthFilter(10))
         }
-        configurarMascaraData()
+        configurarMascaraData(validade)
         card.addView(validade)
 
         val paramsCard = LinearLayout.LayoutParams(
@@ -409,36 +406,30 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun configurarMascaraData() {
-        validade.addTextChangedListener(object : TextWatcher {
+    private fun configurarMascaraData(campoData: EditText) {
+        campoData.addTextChangedListener(object : TextWatcher {
             private var alterando = false
 
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
 
             override fun afterTextChanged(s: Editable?) {
-                if (alterando || s == null) {
-                    return
-                }
+                if (alterando || s == null) return
 
                 val numeros = s.toString().replace("/", "").filter { it.isDigit() }
-                if (numeros.length > 8) {
-                    return
-                }
+                if (numeros.length > 8) return
 
                 val formatado = StringBuilder()
                 for (i in numeros.indices) {
-                    if (i == 2 || i == 4) {
-                        formatado.append("/")
-                    }
+                    if (i == 2 || i == 4) formatado.append("/")
                     formatado.append(numeros[i])
                 }
 
                 val novoTexto = formatado.toString()
                 if (novoTexto != s.toString()) {
                     alterando = true
-                    validade.setText(novoTexto)
-                    validade.setSelection(novoTexto.length)
+                    campoData.setText(novoTexto)
+                    campoData.setSelection(novoTexto.length)
                     alterando = false
                 }
             }
@@ -517,6 +508,7 @@ class MainActivity : Activity() {
         val cursor = db.rawQuery(
             """
             SELECT
+                id,
                 produto,
                 codigo_barras,
                 quantidade,
@@ -538,19 +530,23 @@ class MainActivity : Activity() {
             containerCards.addView(vazio)
         } else {
             do {
-                val produto = cursor.getString(0)
-                val codigo = cursor.getString(1)
-                val qtd = cursor.getInt(2)
-                val validade = cursor.getString(3)
+                val id = cursor.getInt(0)
+                val produto = cursor.getString(1)
+                val codigo = cursor.getString(2)
+                val qtd = cursor.getInt(3)
+                val validade = cursor.getString(4)
 
                 adicionarCardProduto(
                     containerCards,
+                    id,
                     produto,
                     codigo,
                     qtd,
                     formatarDataBanco(validade),
                     null
-                )
+                ) {
+                    mostrarProdutosCadastrados()
+                }
             } while (cursor.moveToNext())
         }
 
@@ -562,6 +558,7 @@ class MainActivity : Activity() {
     }
 
     private data class RegistroBrigada(
+        val id: Int,
         val produto: String,
         val codigo: String,
         val quantidade: Int,
@@ -586,12 +583,15 @@ class MainActivity : Activity() {
             for (registro in registros) {
                 adicionarCardProduto(
                     containerCards,
+                    registro.id,
                     registro.produto,
                     registro.codigo,
                     registro.quantidade,
                     formatarDataBanco(registro.validade),
                     registro.diasRestantes
-                )
+                ) {
+                    mostrarBrigada(diasMaximos)
+                }
             }
 
             val exportar = Button(this).apply {
@@ -640,6 +640,7 @@ class MainActivity : Activity() {
         val cursor = db.rawQuery(
             """
             SELECT
+                id,
                 produto,
                 codigo_barras,
                 quantidade,
@@ -653,10 +654,11 @@ class MainActivity : Activity() {
 
         if (cursor.moveToFirst()) {
             do {
-                val produto = cursor.getString(0)
-                val codigo = cursor.getString(1)
-                val quantidade = cursor.getInt(2)
-                val validade = cursor.getString(3)
+                val id = cursor.getInt(0)
+                val produto = cursor.getString(1)
+                val codigo = cursor.getString(2)
+                val quantidade = cursor.getInt(3)
+                val validade = cursor.getString(4)
 
                 try {
                     val data = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(validade)
@@ -673,6 +675,7 @@ class MainActivity : Activity() {
                             val diferenca = (vencimento.timeInMillis - hoje.timeInMillis) / (24L * 60L * 60L * 1000L)
                             lista.add(
                                 RegistroBrigada(
+                                    id,
                                     produto,
                                     codigo,
                                     quantidade,
@@ -695,11 +698,13 @@ class MainActivity : Activity() {
 
     private fun adicionarCardProduto(
         container: LinearLayout,
+        id: Int,
         nome: String,
         codigo: String,
         quantidade: Int,
         validadeTexto: String,
-        diasRestantes: Long?
+        diasRestantes: Long?,
+        aoAtualizar: () -> Unit
     ) {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -709,6 +714,11 @@ class MainActivity : Activity() {
                 cornerRadius = 14f
             }
             setPadding(30, 24, 30, 24)
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                abrirMenuOpcoesProduto(id, nome, codigo, quantidade, validadeTexto, aoAtualizar)
+            }
         }
 
         val txtNome = TextView(this).apply {
@@ -754,6 +764,173 @@ class MainActivity : Activity() {
         }
 
         container.addView(card, paramsCard)
+    }
+
+    private fun abrirMenuOpcoesProduto(
+        id: Int,
+        nome: String,
+        codigo: String,
+        qtd: Int,
+        validadeFormatada: String,
+        aoAtualizar: () -> Unit
+    ) {
+        val opcoes = arrayOf("Editar Produto", "Excluir Produto")
+        AlertDialog.Builder(this)
+            .setTitle(nome)
+            .setItems(opcoes) { _, qual ->
+                when (qual) {
+                    0 -> mostrarTelaEdicao(id, nome, codigo, qtd, validadeFormatada, aoAtualizar)
+                    1 -> confirmarExclusao(id, nome, aoAtualizar)
+                }
+            }
+            .show()
+    }
+
+    private fun confirmarExclusao(id: Int, nome: String, aoAtualizar: () -> Unit) {
+        AlertDialog.Builder(this)
+            .setTitle("Excluir Produto")
+            .setMessage("Deseja realmente remover \"$nome\" da lista?")
+            .setPositiveButton("EXCLUIR") { _, _ ->
+                val db = openOrCreateDatabase("validade.db", MODE_PRIVATE, null)
+                db.execSQL("DELETE FROM produtos WHERE id = ?", arrayOf(id))
+                db.close()
+                Toast.makeText(this, "Produto excluído com sucesso", Toast.LENGTH_SHORT).show()
+                aoAtualizar()
+            }
+            .setNegativeButton("CANCELAR", null)
+            .show()
+    }
+
+    private fun mostrarTelaEdicao(
+        id: Int,
+        nomeAtual: String,
+        codigo: String,
+        qtdAtual: Int,
+        validadeAtual: String,
+        aoAtualizar: () -> Unit
+    ) {
+        val raiz = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(corFundoApp)
+            setPadding(30, 40, 30, 30)
+        }
+
+        val titulo = TextView(this).apply {
+            text = "EDITAR PRODUTO"
+            textSize = 22f
+            setTextColor(corTextoPrincipal)
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+        }
+        val paramsTitulo = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = 25 }
+        raiz.addView(titulo, paramsTitulo)
+
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable().apply {
+                setColor(corCardFundo)
+                setStroke(3, corBordaBranca)
+                cornerRadius = 16f
+            }
+            setPadding(30, 30, 30, 30)
+        }
+
+        val txtCodigo = TextView(this).apply {
+            text = "Código: $codigo"
+            textSize = 15f
+            setTextColor(corTextoSecundario)
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        card.addView(txtCodigo)
+
+        val editNome = criarCampoTexto("Nome do produto", nomeAtual, 1)
+        card.addView(editNome)
+
+        val editQtd = criarCampoTexto("Quantidade", qtdAtual.toString(), 2)
+        card.addView(editQtd)
+
+        val editValidade = criarCampoTexto("Validade (DD/MM/AAAA)", validadeAtual, 2).apply {
+            filters = arrayOf(InputFilter.LengthFilter(10))
+        }
+        configurarMascaraData(editValidade)
+        card.addView(editValidade)
+
+        val paramsCard = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = 25 }
+        raiz.addView(card, paramsCard)
+
+        val botaoSalvar = Button(this).apply {
+            text = "ATUALIZAR PRODUTO"
+            textSize = 16f
+            setTextColor(Color.BLACK)
+            typeface = Typeface.DEFAULT_BOLD
+            background = GradientDrawable().apply {
+                setColor(corBordaBranca)
+                cornerRadius = 14f
+            }
+            setOnClickListener {
+                val novoNome = editNome.text.toString().trim()
+                val novaQtdTexto = editQtd.text.toString().trim()
+                val novaValidadeTexto = editValidade.text.toString().trim()
+
+                if (novoNome.isEmpty()) {
+                    Toast.makeText(this@MainActivity, "Digite o nome do produto", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+
+                val novaQtd = novaQtdTexto.toIntOrNull()
+                if (novaQtd == null || novaQtd <= 0) {
+                    Toast.makeText(this@MainActivity, "Quantidade inválida", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+
+                val novaDataFormatada = converterData(novaValidadeTexto)
+                if (novaDataFormatada == null) {
+                    Toast.makeText(this@MainActivity, "Data inválida. Use DD/MM/AAAA", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+
+                val db = openOrCreateDatabase("validade.db", MODE_PRIVATE, null)
+                db.execSQL(
+                    """
+                    UPDATE produtos 
+                    SET produto = ?, quantidade = ?, validade = ? 
+                    WHERE id = ?
+                    """.trimIndent(),
+                    arrayOf(novoNome, novaQtd, novaDataFormatada, id)
+                )
+                salvarCatalogo(codigo, novoNome)
+                db.close()
+
+                Toast.makeText(this@MainActivity, "Produto atualizado com sucesso!", Toast.LENGTH_SHORT).show()
+                aoAtualizar()
+            }
+        }
+        val paramsSalvar = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = 15 }
+        raiz.addView(botaoSalvar, paramsSalvar)
+
+        val botaoCancelar = Button(this).apply {
+            text = "CANCELAR"
+            textSize = 16f
+            setTextColor(Color.BLACK)
+            typeface = Typeface.DEFAULT_BOLD
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#CCCCCC"))
+                cornerRadius = 14f
+            }
+            setOnClickListener { aoAtualizar() }
+        }
+        raiz.addView(botaoCancelar)
+
+        setContentView(raiz)
     }
 
     private fun criarEstruturaRolavel(tituloTexto: String): Pair<LinearLayout, LinearLayout> {
