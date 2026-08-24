@@ -12,10 +12,7 @@ import com.google.android.gms.tasks.Task
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
-import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.json.JSONObject
-import java.io.File
-import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
@@ -1395,242 +1392,168 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun formatarDataExterna(
+        data: String
+    ): String {
+
+        return try {
+
+            SimpleDateFormat(
+                "dd/MM/yyyy",
+                Locale.getDefault()
+            ).format(
+                SimpleDateFormat(
+                    "yyyy-MM-dd",
+                    Locale.US
+                ).parse(data)!!
+            )
+
+        } catch (e: Exception) {
+
+            data
+        }
+    }
+
     private fun exportarBrigadaExcel(
         diasMaximos: Int,
         registros: List<RegistroBrigada>
     ) {
 
-        Executors.newSingleThreadExecutor()
-            .execute {
+        Executors.newSingleThreadExecutor().execute {
 
-                try {
+            try {
 
-                    val workbook =
-                        XSSFWorkbook()
+                val nomeArquivo =
+                    "Brigada_${diasMaximos}_dias_" +
+                        SimpleDateFormat(
+                            "yyyyMMdd_HHmm",
+                            Locale.getDefault()
+                        ).format(Date()) +
+                        ".csv"
 
-                    val sheet =
-                        workbook.createSheet(
-                            "Brigada $diasMaximos dias"
-                        )
+                val csv = StringBuilder()
 
-                    val titulo =
-                        sheet.createRow(0)
+                csv.append("BRIGADA ${diasMaximos} DIAS\n")
+                csv.append(
+                    "Gerado em:;" +
+                        SimpleDateFormat(
+                            "dd/MM/yyyy HH:mm",
+                            Locale.getDefault()
+                        ).format(Date()) +
+                        "\n\n"
+                )
 
-                    titulo.createCell(0)
-                        .setCellValue(
-                            "BRIGADA $diasMaximos DIAS"
-                        )
+                csv.append(
+                    "Produto;Código de barras;Quantidade;Validade;Dias para vencer\n"
+                )
 
-                    titulo.createCell(1)
-                        .setCellValue(
-                            "Gerado em:"
-                        )
+                for (registro in registros) {
 
-                    titulo.createCell(2)
-                        .setCellValue(
-                            SimpleDateFormat(
-                                "dd/MM/yyyy HH:mm",
-                                Locale.getDefault()
-                            ).format(
-                                Date()
-                            )
-                        )
+                    csv.append(
+                        "\"${registro.produto.replace("\"", "\"\"")}\";"
+                    )
 
-                    val cabecalho =
-                        sheet.createRow(2)
+                    csv.append(
+                        "\"${registro.codigo}\";"
+                    )
 
-                    cabecalho.createCell(0)
-                        .setCellValue(
-                            "Produto"
-                        )
+                    csv.append(
+                        "${registro.quantidade};"
+                    )
 
-                    cabecalho.createCell(1)
-                        .setCellValue(
-                            "Código de barras"
-                        )
+                    csv.append(
+                        "\"${formatarDataExterna(registro.validade)}\";"
+                    )
 
-                    cabecalho.createCell(2)
-                        .setCellValue(
-                            "Quantidade"
-                        )
+                    csv.append(
+                        "${registro.diasRestantes}\n"
+                    )
+                }
 
-                    cabecalho.createCell(3)
-                        .setCellValue(
-                            "Validade"
-                        )
+                val bytes =
+                    ("\uFEFF" + csv.toString())
+                        .toByteArray(Charsets.UTF_8)
 
-                    cabecalho.createCell(4)
-                        .setCellValue(
-                            "Dias para vencer"
-                        )
+                if (
+                    android.os.Build.VERSION.SDK_INT >=
+                    android.os.Build.VERSION_CODES.Q
+                ) {
 
-                    registros.forEachIndexed {
-                        indice,
-                        registro ->
+                    val values =
+                        ContentValues().apply {
 
-                        val linha =
-                            sheet.createRow(
-                                indice + 3
-                            )
-
-                        linha.createCell(0)
-                            .setCellValue(
-                                registro.produto
-                            )
-
-                        linha.createCell(1)
-                            .setCellValue(
-                                registro.codigo
-                            )
-
-                        linha.createCell(2)
-                            .setCellValue(
-                                registro.quantidade.toDouble()
-                            )
-
-                        linha.createCell(3)
-                            .setCellValue(
-                                formatarDataExterna(
-                                    registro.validade
-                                )
-                            )
-
-                        linha.createCell(4)
-                            .setCellValue(
-                                registro.diasRestantes.toDouble()
-                            )
-                    }
-
-                    for (
-                        coluna in 0..4
-                    ) {
-
-                        sheet.autoSizeColumn(
-                            coluna
-                        )
-                    }
-
-                    val nomeArquivo =
-                        "Brigada_${diasMaximos}_dias_" +
-                            SimpleDateFormat(
-                                "yyyyMMdd_HHmm",
-                                Locale.getDefault()
-                            ).format(
-                                Date()
-                            ) +
-                            ".xlsx"
-
-                    if (
-                        android.os.Build.VERSION.SDK_INT >=
-                        android.os.Build.VERSION_CODES.Q
-                    ) {
-
-                        val values =
-                            ContentValues().apply {
-
-                                put(
-                                    MediaStore.Downloads.DISPLAY_NAME,
-                                    nomeArquivo
-                                )
-
-                                put(
-                                    MediaStore.Downloads.MIME_TYPE,
-                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                                )
-
-                                put(
-                                    MediaStore.Downloads.RELATIVE_PATH,
-                                    "Download"
-                                )
-                            }
-
-                        val resolver =
-                            contentResolver
-
-                        val uri =
-                            resolver.insert(
-                                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                                values
-                            )
-
-                        if (
-                            uri != null
-                        ) {
-
-                            resolver.openOutputStream(
-                                uri
-                            ).use { saida ->
-
-                                workbook.write(
-                                    saida
-                                )
-                            }
-
-                            workbook.close()
-
-                            runOnUiThread {
-
-                                compartilharArquivo(
-                                    uri,
-                                    nomeArquivo
-                                )
-                            }
-
-                        } else {
-
-                            workbook.close()
-
-                            runOnUiThread {
-
-                                Toast.makeText(
-                                    this,
-                                    "Não foi possível criar o arquivo.",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                        }
-
-                    } else {
-
-                        val arquivo =
-                            File(
-                                getExternalFilesDir(
-                                    null
-                                ),
+                            put(
+                                MediaStore.Downloads.DISPLAY_NAME,
                                 nomeArquivo
                             )
 
-                        FileOutputStream(
-                            arquivo
-                        ).use {
+                            put(
+                                MediaStore.Downloads.MIME_TYPE,
+                                "text/csv"
+                            )
 
-                            workbook.write(it)
+                            put(
+                                MediaStore.Downloads.RELATIVE_PATH,
+                                "Download"
+                            )
                         }
 
-                        workbook.close()
+                    val uri =
+                        contentResolver.insert(
+                            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                            values
+                        )
 
-                        runOnUiThread {
-
-                            Toast.makeText(
-                                this,
-                                "Excel criado em:\n${arquivo.absolutePath}",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
+                    if (uri == null) {
+                        throw Exception(
+                            "Não foi possível criar o arquivo."
+                        )
                     }
 
-                } catch (e: Exception) {
+                    contentResolver
+                        .openOutputStream(uri)
+                        .use { saida ->
+
+                            if (saida == null) {
+                                throw Exception(
+                                    "Não foi possível gravar o arquivo."
+                                )
+                            }
+
+                            saida.write(bytes)
+                        }
+
+                    runOnUiThread {
+                        compartilharArquivo(
+                            uri,
+                            nomeArquivo
+                        )
+                    }
+
+                } else {
 
                     runOnUiThread {
 
                         Toast.makeText(
                             this,
-                            "Erro ao gerar Excel: ${e.message}",
+                            "A exportação requer Android 10 ou superior.",
                             Toast.LENGTH_LONG
                         ).show()
                     }
                 }
+
+            } catch (e: Exception) {
+
+                runOnUiThread {
+
+                    Toast.makeText(
+                        this,
+                        "Erro ao gerar arquivo: ${e.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
             }
+        }
     }
 
     private fun compartilharArquivo(
@@ -1644,7 +1567,7 @@ class MainActivity : Activity() {
             )
 
         intent.type =
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            "text/csv"
 
         intent.putExtra(
             Intent.EXTRA_STREAM,
