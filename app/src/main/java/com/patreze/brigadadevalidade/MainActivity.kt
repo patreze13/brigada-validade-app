@@ -27,10 +27,33 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        criarTabelaCatalogo()
         mostrarTelaInicial()
     }
 
+    private fun criarTabelaCatalogo() {
+
+        val db =
+            openOrCreateDatabase(
+                "validade.db",
+                MODE_PRIVATE,
+                null
+            )
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS catalogo_produtos (
+                codigo_barras TEXT PRIMARY KEY,
+                produto TEXT NOT NULL
+            )
+            """.trimIndent()
+        )
+
+        db.close()
+    }
+
     private fun mostrarTelaInicial() {
+
         val layout = LinearLayout(this)
         layout.orientation = LinearLayout.VERTICAL
         layout.gravity = Gravity.CENTER
@@ -61,6 +84,7 @@ class MainActivity : Activity() {
     }
 
     private fun abrirScanner() {
+
         val options =
             GmsBarcodeScannerOptions.Builder()
                 .setBarcodeFormats(
@@ -72,37 +96,125 @@ class MainActivity : Activity() {
                 .build()
 
         val scanner =
-            GmsBarcodeScanning.getClient(this, options)
+            GmsBarcodeScanning.getClient(
+                this,
+                options
+            )
 
         scanner.startScan()
             .addOnSuccessListener { barcode ->
-                codigoAtual = barcode.rawValue ?: ""
+
+                codigoAtual =
+                    barcode.rawValue ?: ""
 
                 if (codigoAtual.isBlank()) {
+
                     mostrarCadastro("")
+
                 } else {
-                    consultarKodebar(codigoAtual)
+
+                    procurarProdutoLocal(
+                        codigoAtual
+                    )
                 }
             }
             .addOnCanceledListener {
-                status.text = "Leitura cancelada"
+
+                status.text =
+                    "Leitura cancelada"
             }
             .addOnFailureListener {
-                status.text = "Erro ao ler código"
+
+                status.text =
+                    "Erro ao ler código"
             }
     }
 
-    private fun consultarKodebar(codigo: String) {
-        status.text = "Consultando produto..."
+    private fun procurarProdutoLocal(
+        codigo: String
+    ) {
+
+        status.text =
+            "Procurando produto..."
 
         Executors.newSingleThreadExecutor().execute {
+
+            var nomeEncontrado = ""
+
             try {
-                val url = URL(
-                    "https://kodebar.korvensistemas.com.br/gtin/lookup?gtin=$codigo"
-                )
+
+                val db =
+                    openOrCreateDatabase(
+                        "validade.db",
+                        MODE_PRIVATE,
+                        null
+                    )
+
+                val cursor =
+                    db.rawQuery(
+                        """
+                        SELECT produto
+                        FROM catalogo_produtos
+                        WHERE codigo_barras = ?
+                        LIMIT 1
+                        """.trimIndent(),
+                        arrayOf(codigo)
+                    )
+
+                if (cursor.moveToFirst()) {
+
+                    nomeEncontrado =
+                        cursor.getString(0)
+                }
+
+                cursor.close()
+                db.close()
+
+            } catch (_: Exception) {
+            }
+
+            runOnUiThread {
+
+                if (nomeEncontrado.isNotBlank()) {
+
+                    status.text =
+                        "Produto encontrado no catálogo"
+
+                    mostrarCadastro(
+                        nomeEncontrado
+                    )
+
+                } else {
+
+                    consultarKodebar(
+                        codigo
+                    )
+                }
+            }
+        }
+    }
+
+    private fun consultarKodebar(
+        codigo: String
+    ) {
+
+        runOnUiThread {
+            status.text =
+                "Consultando produto..."
+        }
+
+        Executors.newSingleThreadExecutor().execute {
+
+            try {
+
+                val url =
+                    URL(
+                        "https://kodebar.korvensistemas.com.br/gtin/lookup?gtin=$codigo"
+                    )
 
                 val conexao =
-                    url.openConnection() as HttpURLConnection
+                    url.openConnection()
+                        as HttpURLConnection
 
                 conexao.requestMethod = "GET"
                 conexao.connectTimeout = 15000
@@ -113,27 +225,41 @@ class MainActivity : Activity() {
                     BuildConfig.KODEBAR_API_KEY
                 )
 
-                val respostaHttp = conexao.responseCode
+                val respostaHttp =
+                    conexao.responseCode
 
-                if (respostaHttp == HttpURLConnection.HTTP_OK) {
+                if (
+                    respostaHttp ==
+                    HttpURLConnection.HTTP_OK
+                ) {
 
                     val resposta =
                         conexao.inputStream
                             .bufferedReader()
-                            .use { it.readText() }
+                            .use {
+                                it.readText()
+                            }
 
                     conexao.disconnect()
 
-                    val json = JSONObject(resposta)
+                    val json =
+                        JSONObject(resposta)
 
                     val nome =
-                        json.optString("nome", "")
+                        json.optString(
+                            "nome",
+                            ""
+                        )
 
                     val marca =
-                        json.optString("marca", "")
+                        json.optString(
+                            "marca",
+                            ""
+                        )
 
                     val nomeFinal =
                         when {
+
                             nome.isNotBlank() &&
                                 marca.isNotBlank() ->
                                 "$nome - $marca"
@@ -145,39 +271,65 @@ class MainActivity : Activity() {
                                 ""
                         }
 
-                    if (nomeFinal.isNotBlank()) {
+                    if (
+                        nomeFinal.isNotBlank()
+                    ) {
+
                         runOnUiThread {
-                            mostrarCadastro(nomeFinal)
+
+                            mostrarCadastro(
+                                nomeFinal
+                            )
                         }
+
                     } else {
-                        consultarOpenFoodFacts(codigo)
+
+                        consultarOpenFoodFacts(
+                            codigo
+                        )
                     }
 
                 } else {
+
                     conexao.disconnect()
-                    consultarOpenFoodFacts(codigo)
+
+                    consultarOpenFoodFacts(
+                        codigo
+                    )
                 }
 
-            } catch (e: Exception) {
-                consultarOpenFoodFacts(codigo)
+            } catch (_: Exception) {
+
+                consultarOpenFoodFacts(
+                    codigo
+                )
             }
         }
     }
 
-    private fun consultarOpenFoodFacts(codigo: String) {
+    private fun consultarOpenFoodFacts(
+        codigo: String
+    ) {
+
         runOnUiThread {
-            status.text = "Tentando segunda fonte..."
+
+            status.text =
+                "Tentando segunda fonte..."
         }
 
         Executors.newSingleThreadExecutor().execute {
+
             try {
-                val url = URL(
-                    "https://world.openfoodfacts.org/api/v3/product/$codigo" +
-                        ".json?fields=code,product_name,product_name_pt,brands,quantity"
-                )
+
+                val url =
+                    URL(
+                        "https://world.openfoodfacts.org/api/v3/product/$codigo" +
+                            ".json?fields=code,product_name,product_name_pt,brands,quantity"
+                    )
 
                 val conexao =
-                    url.openConnection() as HttpURLConnection
+                    url.openConnection()
+                        as HttpURLConnection
 
                 conexao.requestMethod = "GET"
                 conexao.connectTimeout = 15000
@@ -188,23 +340,37 @@ class MainActivity : Activity() {
                     "BrigadaDeValidade/0.5 (Android)"
                 )
 
-                val respostaHttp = conexao.responseCode
+                val respostaHttp =
+                    conexao.responseCode
 
-                if (respostaHttp == HttpURLConnection.HTTP_OK) {
+                if (
+                    respostaHttp ==
+                    HttpURLConnection.HTTP_OK
+                ) {
 
                     val resposta =
                         conexao.inputStream
                             .bufferedReader()
-                            .use { it.readText() }
+                            .use {
+                                it.readText()
+                            }
 
                     conexao.disconnect()
 
-                    val json = JSONObject(resposta)
+                    val json =
+                        JSONObject(resposta)
 
-                    if (json.optInt("status", 0) == 1) {
+                    if (
+                        json.optInt(
+                            "status",
+                            0
+                        ) == 1
+                    ) {
 
                         val produto =
-                            json.optJSONObject("product")
+                            json.optJSONObject(
+                                "product"
+                            )
 
                         var nome = ""
 
@@ -217,6 +383,7 @@ class MainActivity : Activity() {
                                 )
 
                             if (nome.isBlank()) {
+
                                 nome =
                                     produto.optString(
                                         "product_name",
@@ -234,16 +401,23 @@ class MainActivity : Activity() {
                                 nome.isNotBlank() &&
                                 marca.isNotBlank()
                             ) {
-                                nome = "$nome - $marca"
+
+                                nome =
+                                    "$nome - $marca"
                             }
                         }
 
                         runOnUiThread {
-                            mostrarCadastro(nome)
+
+                            mostrarCadastro(
+                                nome
+                            )
                         }
 
                     } else {
+
                         runOnUiThread {
+
                             mostrarCadastro("")
                         }
                     }
@@ -253,69 +427,107 @@ class MainActivity : Activity() {
                     conexao.disconnect()
 
                     runOnUiThread {
+
                         mostrarCadastro("")
                     }
                 }
 
-            } catch (e: Exception) {
+            } catch (_: Exception) {
 
                 runOnUiThread {
+
                     mostrarCadastro("")
                 }
             }
         }
     }
 
-    private fun mostrarCadastro(nomeEncontrado: String) {
+    private fun mostrarCadastro(
+        nomeEncontrado: String
+    ) {
 
-        val layout = LinearLayout(this)
-        layout.orientation = LinearLayout.VERTICAL
-        layout.setPadding(40, 30, 40, 30)
+        val layout =
+            LinearLayout(this)
 
-        val titulo = TextView(this)
+        layout.orientation =
+            LinearLayout.VERTICAL
+
+        layout.setPadding(
+            40,
+            30,
+            40,
+            30
+        )
+
+        val titulo =
+            TextView(this)
 
         titulo.text =
-            if (nomeEncontrado.isNotBlank()) {
+            if (
+                nomeEncontrado.isNotBlank()
+            ) {
+
                 "PRODUTO ENCONTRADO"
+
             } else {
+
                 "PRODUTO NÃO ENCONTRADO"
             }
 
         titulo.textSize = 22f
+
         layout.addView(titulo)
 
-        val codigo = TextView(this)
+        val codigo =
+            TextView(this)
 
-        codigo.text = "Código: $codigoAtual"
+        codigo.text =
+            "Código: $codigoAtual"
+
         codigo.textSize = 16f
+
         layout.addView(codigo)
 
-        nomeProduto = EditText(this)
+        nomeProduto =
+            EditText(this)
 
-        nomeProduto.hint = "Nome do produto"
-        nomeProduto.setText(nomeEncontrado)
+        nomeProduto.hint =
+            "Nome do produto"
+
+        nomeProduto.setText(
+            nomeEncontrado
+        )
 
         layout.addView(nomeProduto)
 
-        quantidade = EditText(this)
+        quantidade =
+            EditText(this)
 
-        quantidade.hint = "Quantidade"
+        quantidade.hint =
+            "Quantidade"
+
         quantidade.inputType = 2
 
         layout.addView(quantidade)
 
-        validade = EditText(this)
+        validade =
+            EditText(this)
 
-        validade.hint = "Validade (DD/MM/AAAA)"
+        validade.hint =
+            "Validade (DD/MM/AAAA)"
+
         validade.inputType = 2
 
         validade.filters =
-            arrayOf(InputFilter.LengthFilter(10))
+            arrayOf(
+                InputFilter.LengthFilter(10)
+            )
 
         validade.addTextChangedListener(
             object : TextWatcher {
 
-                private var alterando = false
+                private var alterando =
+                    false
 
                 override fun beforeTextChanged(
                     s: CharSequence?,
@@ -335,7 +547,10 @@ class MainActivity : Activity() {
                     s: Editable?
                 ) {
 
-                    if (alterando || s == null) {
+                    if (
+                        alterando ||
+                        s == null
+                    ) {
                         return
                     }
 
@@ -343,17 +558,27 @@ class MainActivity : Activity() {
                         s.toString()
                             .replace("/", "")
 
-                    if (numeros.length > 8) {
+                    if (
+                        numeros.length > 8
+                    ) {
                         return
                     }
 
                     val formatado =
                         StringBuilder()
 
-                    for (i in numeros.indices) {
+                    for (
+                        i in numeros.indices
+                    ) {
 
-                        if (i == 2 || i == 4) {
-                            formatado.append("/")
+                        if (
+                            i == 2 ||
+                            i == 4
+                        ) {
+
+                            formatado.append(
+                                "/"
+                            )
                         }
 
                         formatado.append(
@@ -365,7 +590,8 @@ class MainActivity : Activity() {
                         formatado.toString()
 
                     if (
-                        novoTexto != s.toString()
+                        novoTexto !=
+                        s.toString()
                     ) {
 
                         alterando = true
@@ -386,11 +612,14 @@ class MainActivity : Activity() {
 
         layout.addView(validade)
 
-        val salvar = Button(this)
+        val salvar =
+            Button(this)
 
-        salvar.text = "SALVAR PRODUTO"
+        salvar.text =
+            "SALVAR PRODUTO"
 
         salvar.setOnClickListener {
+
             salvarProduto()
         }
 
@@ -417,6 +646,7 @@ class MainActivity : Activity() {
                 .trim()
 
         if (nome.isEmpty()) {
+
             Toast.makeText(
                 this,
                 "Digite o nome do produto",
@@ -444,9 +674,13 @@ class MainActivity : Activity() {
         }
 
         val validadeFormatada =
-            converterData(validadeTexto)
+            converterData(
+                validadeTexto
+            )
 
-        if (validadeFormatada == null) {
+        if (
+            validadeFormatada == null
+        ) {
 
             Toast.makeText(
                 this,
@@ -485,9 +719,12 @@ class MainActivity : Activity() {
             SimpleDateFormat(
                 "yyyy-MM-dd",
                 Locale.US
-            ).format(dataConvertida!!)
+            ).format(
+                dataConvertida!!
+            )
 
-        } catch (e: Exception) {
+        } catch (_: Exception) {
+
             null
         }
     }
@@ -521,6 +758,29 @@ class MainActivity : Activity() {
                 criado_em TEXT
             )
             """.trimIndent()
+        )
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS catalogo_produtos (
+                codigo_barras TEXT PRIMARY KEY,
+                produto TEXT NOT NULL
+            )
+            """.trimIndent()
+        )
+
+        db.execSQL(
+            """
+            INSERT OR REPLACE INTO catalogo_produtos (
+                codigo_barras,
+                produto
+            )
+            VALUES (?, ?)
+            """.trimIndent(),
+            arrayOf(
+                codigo,
+                nome
+            )
         )
 
         db.execSQL(
