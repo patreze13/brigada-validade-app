@@ -1220,7 +1220,7 @@ class MainActivity : Activity() {
                 "$produto\n" +
                     "Código: $codigo\n" +
                     "Quantidade: $quantidade\n" +
-                    "Validade: ${formatarDataExterna(validade)}\n" +
+                    "Validade: ${formatarDataBanco(validade)}\n" +
                     "Dias para vencer: $diasRestantes"
     }
 
@@ -1440,7 +1440,7 @@ class MainActivity : Activity() {
                     )
 
                     csv.append(
-                        "\"${formatarDataExterna(registro.validade)}\";"
+                        "\"${formatarDataBanco(registro.validade)}\";"
                     )
 
                     csv.append(
@@ -1673,26 +1673,3 @@ class MainActivity : Activity() {
             data
         }
     }
-}
-
-
-    private fun formatarDataExterna(
-        data: String
-    ): String {
-        return try {
-            val entrada = SimpleDateFormat(
-                "yyyy-MM-dd",
-                Locale.US
-            )
-
-            val convertida = entrada.parse(data)
-
-            SimpleDateFormat(
-                "dd/MM/yyyy",
-                Locale.getDefault()
-            ).format(convertida!!)
-        } catch (_: Exception) {
-            data
-        }
-    }
-}
