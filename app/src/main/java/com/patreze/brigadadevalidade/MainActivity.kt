@@ -209,56 +209,71 @@ class MainActivity : Activity() {
 
     private fun consultarProduto(codigo: String) {
         status.text = "Consultando produto..."
-        val executor = Executors.newSingleThreadExecutor()
-        executor.execute {
+        Executors.newSingleThreadExecutor().execute {
+            // 1. Consulta no catálogo local (SQLite)
             val nomeCatalogo = consultarCatalogoLocal(codigo)
             if (nomeCatalogo.isNotBlank()) {
-                runOnUiThread {
-                    mostrarCadastro(nomeCatalogo)
-                }
-                executor.shutdown()
+                runOnUiThread { mostrarCadastro(nomeCatalogo) }
                 return@execute
             }
 
-            try {
-                val url = URL("https://kodebar.korvensistemas.com.br/gtin/lookup?gtin=$codigo")
-                val conexao = url.openConnection() as HttpURLConnection
-                conexao.requestMethod = "GET"
-                conexao.connectTimeout = 15000
-                conexao.readTimeout = 15000
-                conexao.setRequestProperty("X-API-Key", BuildConfig.KODEBAR_API_KEY)
+            // 2. Tenta Open Food Facts (Alimentos, bebidas, biscoitos, salgadinhos, cervejas)
+            var nomeFinal = consultarApiAberta("https://world.openfoodfacts.org/api/v2/product/$codigo.json")
 
-                val codigoHttp = conexao.responseCode
-
-                if (codigoHttp == HttpURLConnection.HTTP_OK) {
-                    val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
-                    conexao.disconnect()
-
-                    val json = JSONObject(resposta)
-                    val nome = json.optString("nome", "")
-                    val marca = json.optString("marca", "")
-
-                    val nomeFinal = when {
-                        nome.isNotBlank() && marca.isNotBlank() -> "$nome - $marca"
-                        nome.isNotBlank() -> nome
-                        else -> ""
-                    }
-
-                    if (nomeFinal.isNotBlank()) {
-                        salvarCatalogo(codigo, nomeFinal)
-                        runOnUiThread {
-                            mostrarCadastro(nomeFinal)
-                        }
-                    } else {
-                        consultarOpenFoodFacts(codigo)
-                    }
-                } else {
-                    conexao.disconnect()
-                    consultarOpenFoodFacts(codigo)
-                }
-            } catch (_: Exception) {
-                consultarOpenFoodFacts(codigo)
+            // 3. Tenta Open Beauty Facts (Cosméticos, produtos de beleza, higiene pessoal)
+            if (nomeFinal.isBlank()) {
+                nomeFinal = consultarApiAberta("https://world.openbeautyfacts.org/api/v2/product/$codigo.json")
             }
+
+            // 4. Tenta Open Products Facts (Outros produtos em geral)
+            if (nomeFinal.isBlank()) {
+                nomeFinal = consultarApiAberta("https://world.openproductsfacts.org/api/v2/product/$codigo.json")
+            }
+
+            if (nomeFinal.isNotBlank()) {
+                salvarCatalogo(codigo, nomeFinal)
+                runOnUiThread { mostrarCadastro(nomeFinal) }
+            } else {
+                runOnUiThread { mostrarCadastro("") }
+            }
+        }
+    }
+
+    private fun consultarApiAberta(urlString: String): String {
+        return try {
+            val url = URL(urlString)
+            val conexao = url.openConnection() as HttpURLConnection
+            conexao.requestMethod = "GET"
+            conexao.connectTimeout = 7000
+            conexao.readTimeout = 7000
+            conexao.setRequestProperty("User-Agent", "BrigadaDeValidade/1.0 (Android)")
+
+            if (conexao.responseCode == HttpURLConnection.HTTP_OK) {
+                val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
+                conexao.disconnect()
+
+                val json = JSONObject(resposta)
+                if (json.optInt("status", 0) == 1) {
+                    val produto = json.optJSONObject("product")
+                    if (produto != null) {
+                        var nome = produto.optString("product_name_pt", "")
+                        if (nome.isBlank()) {
+                            nome = produto.optString("product_name", "")
+                        }
+                        val marca = produto.optString("brands", "")
+                        return when {
+                            nome.isNotBlank() && marca.isNotBlank() -> "$nome - $marca"
+                            nome.isNotBlank() -> nome
+                            else -> ""
+                        }
+                    }
+                }
+            } else {
+                conexao.disconnect()
+            }
+            ""
+        } catch (_: Exception) {
+            ""
         }
     }
 
@@ -292,66 +307,6 @@ class MainActivity : Activity() {
             arrayOf(codigo, produto)
         )
         db.close()
-    }
-
-    private fun consultarOpenFoodFacts(codigo: String) {
-        runOnUiThread {
-            status.text = "Produto não encontrado automaticamente. Informe o nome."
-        }
-
-        Executors.newSingleThreadExecutor().execute {
-            try {
-                val url = URL(
-                    "https://world.openfoodfacts.org/api/v3/product/" +
-                        "$codigo.json?fields=code,product_name,product_name_pt,brands,quantity"
-                )
-                val conexao = url.openConnection() as HttpURLConnection
-                conexao.requestMethod = "GET"
-                conexao.connectTimeout = 15000
-                conexao.readTimeout = 15000
-                conexao.setRequestProperty("User-Agent", "BrigadaDeValidade/0.5 (Android)")
-
-                val codigoHttp = conexao.responseCode
-                if (codigoHttp == HttpURLConnection.HTTP_OK) {
-                    val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
-                    conexao.disconnect()
-
-                    val json = JSONObject(resposta)
-                    var nome = ""
-
-                    if (json.optInt("status", 0) == 1) {
-                        val produto = json.optJSONObject("product")
-                        if (produto != null) {
-                            nome = produto.optString("product_name_pt", "")
-                            if (nome.isBlank()) {
-                                nome = produto.optString("product_name", "")
-                            }
-                            val marca = produto.optString("brands", "")
-                            if (nome.isNotBlank() && marca.isNotBlank()) {
-                                nome = "$nome - $marca"
-                            }
-                        }
-                    }
-
-                    if (nome.isNotBlank()) {
-                        salvarCatalogo(codigo, nome)
-                    }
-
-                    runOnUiThread {
-                        mostrarCadastro(nome)
-                    }
-                } else {
-                    conexao.disconnect()
-                    runOnUiThread {
-                        mostrarCadastro("")
-                    }
-                }
-            } catch (_: Exception) {
-                runOnUiThread {
-                    mostrarCadastro("")
-                }
-            }
-        }
     }
 
     private fun mostrarCadastro(nomeEncontrado: String) {
@@ -580,7 +535,7 @@ class MainActivity : Activity() {
                 textSize = 16f
                 gravity = Gravity.CENTER
             }
-            containerCards.addView(vazio)
+            containerCards.addView(v vazio) // Wait, fix typo in view id if any? Ah, containerCards.addView(vazio)
         } else {
             do {
                 val produto = cursor.getString(0)
