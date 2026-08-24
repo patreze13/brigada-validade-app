@@ -1392,28 +1392,6 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun formatarDataExterna(
-        data: String
-    ): String {
-
-        return try {
-
-            SimpleDateFormat(
-                "dd/MM/yyyy",
-                Locale.getDefault()
-            ).format(
-                SimpleDateFormat(
-                    "yyyy-MM-dd",
-                    Locale.US
-                ).parse(data)!!
-            )
-
-        } catch (e: Exception) {
-
-            data
-        }
-    }
-
     private fun exportarBrigadaExcel(
         diasMaximos: Int,
         registros: List<RegistroBrigada>
