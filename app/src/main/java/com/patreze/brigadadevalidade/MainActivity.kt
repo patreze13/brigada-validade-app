@@ -535,7 +535,7 @@ class MainActivity : Activity() {
                 textSize = 16f
                 gravity = Gravity.CENTER
             }
-            containerCards.addView(v vazio) // Wait, fix typo in view id if any? Ah, containerCards.addView(vazio)
+            containerCards.addView(vazio)
         } else {
             do {
                 val produto = cursor.getString(0)
