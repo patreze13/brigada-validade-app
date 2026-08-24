@@ -1,21 +1,28 @@
 package com.patreze.brigadadevalidade
 
 import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
 import android.text.InputFilter
 import android.text.TextWatcher
 import android.view.Gravity
 import android.widget.*
+import com.google.android.gms.tasks.Task
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
+import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.json.JSONObject
+import java.io.File
+import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.Executors
+import android.content.ContentValues
+import android.provider.MediaStore
 
 class MainActivity : Activity() {
 
@@ -28,17 +35,16 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         criarTabelaCatalogo()
+        criarTabelaProdutos()
         mostrarTelaInicial()
     }
 
     private fun criarTabelaCatalogo() {
-
-        val db =
-            openOrCreateDatabase(
-                "validade.db",
-                MODE_PRIVATE,
-                null
-            )
+        val db = openOrCreateDatabase(
+            "validade.db",
+            MODE_PRIVATE,
+            null
+        )
 
         db.execSQL(
             """
@@ -52,35 +58,140 @@ class MainActivity : Activity() {
         db.close()
     }
 
+    private fun criarTabelaProdutos() {
+        val db = openOrCreateDatabase(
+            "validade.db",
+            MODE_PRIVATE,
+            null
+        )
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS produtos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                codigo_barras TEXT NOT NULL,
+                produto TEXT NOT NULL,
+                quantidade INTEGER NOT NULL,
+                validade TEXT NOT NULL,
+                brigada_60 TEXT DEFAULT 'PENDENTE',
+                brigada_30 TEXT DEFAULT 'PENDENTE',
+                brigada_10 TEXT DEFAULT 'PENDENTE',
+                situacao_geral TEXT DEFAULT 'ATIVO',
+                criado_em TEXT
+            )
+            """.trimIndent()
+        )
+
+        db.close()
+    }
+
     private fun mostrarTelaInicial() {
 
         val layout = LinearLayout(this)
-        layout.orientation = LinearLayout.VERTICAL
-        layout.gravity = Gravity.CENTER
-        layout.setPadding(40, 40, 40, 40)
+
+        layout.orientation =
+            LinearLayout.VERTICAL
+
+        layout.gravity =
+            Gravity.CENTER
+
+        layout.setPadding(
+            40,
+            40,
+            40,
+            40
+        )
 
         val titulo = TextView(this)
-        titulo.text = "BRIGADA DE VALIDADE"
-        titulo.textSize = 26f
-        titulo.gravity = Gravity.CENTER
+
+        titulo.text =
+            "BRIGADA DE VALIDADE"
+
+        titulo.textSize =
+            26f
+
+        titulo.gravity =
+            Gravity.CENTER
+
         layout.addView(titulo)
 
-        val botao = Button(this)
-        botao.text = "ESCANEAR CÓDIGO DE BARRAS"
-
-        botao.setOnClickListener {
+        adicionarBotao(
+            layout,
+            "ESCANEAR PRODUTO"
+        ) {
             abrirScanner()
         }
 
-        layout.addView(botao)
+        adicionarBotao(
+            layout,
+            "PRODUTOS CADASTRADOS"
+        ) {
+            mostrarProdutosCadastrados()
+        }
+
+        adicionarBotao(
+            layout,
+            "BRIGADA 60 DIAS"
+        ) {
+            mostrarBrigada(60)
+        }
+
+        adicionarBotao(
+            layout,
+            "BRIGADA 30 DIAS"
+        ) {
+            mostrarBrigada(30)
+        }
 
         status = TextView(this)
-        status.text = ""
-        status.textSize = 16f
-        status.gravity = Gravity.CENTER
+
+        status.text =
+            ""
+
+        status.textSize =
+            16f
+
+        status.gravity =
+            Gravity.CENTER
+
         layout.addView(status)
 
         setContentView(layout)
+    }
+
+    private fun adicionarBotao(
+        layout: LinearLayout,
+        texto: String,
+        acao: () -> Unit
+    ) {
+
+        val botao =
+            Button(this)
+
+        botao.text =
+            texto
+
+        val parametros =
+            LinearLayout.LayoutParams(
+                -1,
+                -2
+            )
+
+        parametros.setMargins(
+            0,
+            12,
+            0,
+            12
+        )
+
+        layout.addView(
+            botao,
+            parametros
+        )
+
+        botao.setOnClickListener {
+            acao()
+        }
     }
 
     private fun abrirScanner() {
@@ -107,7 +218,9 @@ class MainActivity : Activity() {
                 codigoAtual =
                     barcode.rawValue ?: ""
 
-                if (codigoAtual.isBlank()) {
+                if (
+                    codigoAtual.isBlank()
+                ) {
 
                     mostrarCadastro("")
 
@@ -137,61 +250,67 @@ class MainActivity : Activity() {
         status.text =
             "Procurando produto..."
 
-        Executors.newSingleThreadExecutor().execute {
+        Executors.newSingleThreadExecutor()
+            .execute {
 
-            var nomeEncontrado = ""
+                var nomeEncontrado =
+                    ""
 
-            try {
+                try {
 
-                val db =
-                    openOrCreateDatabase(
-                        "validade.db",
-                        MODE_PRIVATE,
-                        null
-                    )
+                    val db =
+                        openOrCreateDatabase(
+                            "validade.db",
+                            MODE_PRIVATE,
+                            null
+                        )
 
-                val cursor =
-                    db.rawQuery(
-                        """
-                        SELECT produto
-                        FROM catalogo_produtos
-                        WHERE codigo_barras = ?
-                        LIMIT 1
-                        """.trimIndent(),
-                        arrayOf(codigo)
-                    )
+                    val cursor =
+                        db.rawQuery(
+                            """
+                            SELECT produto
+                            FROM catalogo_produtos
+                            WHERE codigo_barras = ?
+                            LIMIT 1
+                            """.trimIndent(),
+                            arrayOf(codigo)
+                        )
 
-                if (cursor.moveToFirst()) {
+                    if (
+                        cursor.moveToFirst()
+                    ) {
 
-                    nomeEncontrado =
-                        cursor.getString(0)
+                        nomeEncontrado =
+                            cursor.getString(0)
+                    }
+
+                    cursor.close()
+                    db.close()
+
+                } catch (_: Exception) {
                 }
 
-                cursor.close()
-                db.close()
+                runOnUiThread {
 
-            } catch (_: Exception) {
-            }
+                    if (
+                        nomeEncontrado.isNotBlank()
+                    ) {
 
-            runOnUiThread {
+                        status.text =
+                            "Produto encontrado no catálogo"
 
-                if (nomeEncontrado.isNotBlank()) {
+                        mostrarCadastro(
+                            nomeEncontrado
+                        )
 
-                    status.text =
-                        "Produto encontrado no catálogo"
+                    } else {
 
-                    mostrarCadastro(
-                        nomeEncontrado
-                    )
-
-                } else {
-
-                    consultarKodebar(
-                        codigo
-                    )
+                        consultarKodebar(
+                            codigo
+                        )
+                    }
                 }
             }
-        }
     }
 
     private fun consultarKodebar(
@@ -199,112 +318,121 @@ class MainActivity : Activity() {
     ) {
 
         runOnUiThread {
+
             status.text =
                 "Consultando produto..."
         }
 
-        Executors.newSingleThreadExecutor().execute {
+        Executors.newSingleThreadExecutor()
+            .execute {
 
-            try {
+                try {
 
-                val url =
-                    URL(
-                        "https://kodebar.korvensistemas.com.br/gtin/lookup?gtin=$codigo"
+                    val url =
+                        URL(
+                            "https://kodebar.korvensistemas.com.br/gtin/lookup?gtin=$codigo"
+                        )
+
+                    val conexao =
+                        url.openConnection()
+                            as HttpURLConnection
+
+                    conexao.requestMethod =
+                        "GET"
+
+                    conexao.connectTimeout =
+                        15000
+
+                    conexao.readTimeout =
+                        15000
+
+                    conexao.setRequestProperty(
+                        "X-API-Key",
+                        BuildConfig.KODEBAR_API_KEY
                     )
 
-                val conexao =
-                    url.openConnection()
-                        as HttpURLConnection
-
-                conexao.requestMethod = "GET"
-                conexao.connectTimeout = 15000
-                conexao.readTimeout = 15000
-
-                conexao.setRequestProperty(
-                    "X-API-Key",
-                    BuildConfig.KODEBAR_API_KEY
-                )
-
-                val respostaHttp =
-                    conexao.responseCode
-
-                if (
-                    respostaHttp ==
-                    HttpURLConnection.HTTP_OK
-                ) {
-
-                    val resposta =
-                        conexao.inputStream
-                            .bufferedReader()
-                            .use {
-                                it.readText()
-                            }
-
-                    conexao.disconnect()
-
-                    val json =
-                        JSONObject(resposta)
-
-                    val nome =
-                        json.optString(
-                            "nome",
-                            ""
-                        )
-
-                    val marca =
-                        json.optString(
-                            "marca",
-                            ""
-                        )
-
-                    val nomeFinal =
-                        when {
-
-                            nome.isNotBlank() &&
-                                marca.isNotBlank() ->
-                                "$nome - $marca"
-
-                            nome.isNotBlank() ->
-                                nome
-
-                            else ->
-                                ""
-                        }
+                    val respostaHttp =
+                        conexao.responseCode
 
                     if (
-                        nomeFinal.isNotBlank()
+                        respostaHttp ==
+                        HttpURLConnection.HTTP_OK
                     ) {
 
-                        runOnUiThread {
+                        val resposta =
+                            conexao.inputStream
+                                .bufferedReader()
+                                .use {
+                                    it.readText()
+                                }
 
-                            mostrarCadastro(
-                                nomeFinal
+                        conexao.disconnect()
+
+                        val json =
+                            JSONObject(
+                                resposta
+                            )
+
+                        val nome =
+                            json.optString(
+                                "nome",
+                                ""
+                            )
+
+                        val marca =
+                            json.optString(
+                                "marca",
+                                ""
+                            )
+
+                        val nomeFinal =
+                            when {
+
+                                nome.isNotBlank() &&
+                                    marca.isNotBlank() ->
+                                    "$nome - $marca"
+
+                                nome.isNotBlank() ->
+                                    nome
+
+                                else ->
+                                    ""
+                            }
+
+                        if (
+                            nomeFinal.isNotBlank()
+                        ) {
+
+                            runOnUiThread {
+
+                                mostrarCadastro(
+                                    nomeFinal
+                                )
+                            }
+
+                        } else {
+
+                            consultarOpenFoodFacts(
+                                codigo
                             )
                         }
 
                     } else {
+
+                        conexao.disconnect()
 
                         consultarOpenFoodFacts(
                             codigo
                         )
                     }
 
-                } else {
-
-                    conexao.disconnect()
+                } catch (_: Exception) {
 
                     consultarOpenFoodFacts(
                         codigo
                     )
                 }
-
-            } catch (_: Exception) {
-
-                consultarOpenFoodFacts(
-                    codigo
-                )
             }
-        }
     }
 
     private fun consultarOpenFoodFacts(
@@ -317,104 +445,127 @@ class MainActivity : Activity() {
                 "Tentando segunda fonte..."
         }
 
-        Executors.newSingleThreadExecutor().execute {
+        Executors.newSingleThreadExecutor()
+            .execute {
 
-            try {
+                try {
 
-                val url =
-                    URL(
-                        "https://world.openfoodfacts.org/api/v3/product/$codigo" +
-                            ".json?fields=code,product_name,product_name_pt,brands,quantity"
+                    val url =
+                        URL(
+                            "https://world.openfoodfacts.org/api/v3/product/$codigo" +
+                                ".json?fields=code,product_name,product_name_pt,brands,quantity"
+                        )
+
+                    val conexao =
+                        url.openConnection()
+                            as HttpURLConnection
+
+                    conexao.requestMethod =
+                        "GET"
+
+                    conexao.connectTimeout =
+                        15000
+
+                    conexao.readTimeout =
+                        15000
+
+                    conexao.setRequestProperty(
+                        "User-Agent",
+                        "BrigadaDeValidade/0.6 (Android)"
                     )
 
-                val conexao =
-                    url.openConnection()
-                        as HttpURLConnection
-
-                conexao.requestMethod = "GET"
-                conexao.connectTimeout = 15000
-                conexao.readTimeout = 15000
-
-                conexao.setRequestProperty(
-                    "User-Agent",
-                    "BrigadaDeValidade/0.5 (Android)"
-                )
-
-                val respostaHttp =
-                    conexao.responseCode
-
-                if (
-                    respostaHttp ==
-                    HttpURLConnection.HTTP_OK
-                ) {
-
-                    val resposta =
-                        conexao.inputStream
-                            .bufferedReader()
-                            .use {
-                                it.readText()
-                            }
-
-                    conexao.disconnect()
-
-                    val json =
-                        JSONObject(resposta)
+                    val respostaHttp =
+                        conexao.responseCode
 
                     if (
-                        json.optInt(
-                            "status",
-                            0
-                        ) == 1
+                        respostaHttp ==
+                        HttpURLConnection.HTTP_OK
                     ) {
 
-                        val produto =
-                            json.optJSONObject(
-                                "product"
+                        val resposta =
+                            conexao.inputStream
+                                .bufferedReader()
+                                .use {
+                                    it.readText()
+                                }
+
+                        conexao.disconnect()
+
+                        val json =
+                            JSONObject(
+                                resposta
                             )
 
-                        var nome = ""
+                        if (
+                            json.optInt(
+                                "status",
+                                0
+                            ) == 1
+                        ) {
 
-                        if (produto != null) {
-
-                            nome =
-                                produto.optString(
-                                    "product_name_pt",
-                                    ""
+                            val produto =
+                                json.optJSONObject(
+                                    "product"
                                 )
 
-                            if (nome.isBlank()) {
-
-                                nome =
-                                    produto.optString(
-                                        "product_name",
-                                        ""
-                                    )
-                            }
-
-                            val marca =
-                                produto.optString(
-                                    "brands",
-                                    ""
-                                )
+                            var nome =
+                                ""
 
                             if (
-                                nome.isNotBlank() &&
-                                marca.isNotBlank()
+                                produto != null
                             ) {
 
                                 nome =
-                                    "$nome - $marca"
+                                    produto.optString(
+                                        "product_name_pt",
+                                        ""
+                                    )
+
+                                if (
+                                    nome.isBlank()
+                                ) {
+
+                                    nome =
+                                        produto.optString(
+                                            "product_name",
+                                            ""
+                                        )
+                                }
+
+                                val marca =
+                                    produto.optString(
+                                        "brands",
+                                        ""
+                                    )
+
+                                if (
+                                    nome.isNotBlank() &&
+                                    marca.isNotBlank()
+                                ) {
+
+                                    nome =
+                                        "$nome - $marca"
+                                }
+                            }
+
+                            runOnUiThread {
+
+                                mostrarCadastro(
+                                    nome
+                                )
+                            }
+
+                        } else {
+
+                            runOnUiThread {
+
+                                mostrarCadastro("")
                             }
                         }
 
-                        runOnUiThread {
-
-                            mostrarCadastro(
-                                nome
-                            )
-                        }
-
                     } else {
+
+                        conexao.disconnect()
 
                         runOnUiThread {
 
@@ -422,24 +573,14 @@ class MainActivity : Activity() {
                         }
                     }
 
-                } else {
-
-                    conexao.disconnect()
+                } catch (_: Exception) {
 
                     runOnUiThread {
 
                         mostrarCadastro("")
                     }
                 }
-
-            } catch (_: Exception) {
-
-                runOnUiThread {
-
-                    mostrarCadastro("")
-                }
             }
-        }
     }
 
     private fun mostrarCadastro(
@@ -474,7 +615,8 @@ class MainActivity : Activity() {
                 "PRODUTO NÃO ENCONTRADO"
             }
 
-        titulo.textSize = 22f
+        titulo.textSize =
+            22f
 
         layout.addView(titulo)
 
@@ -484,7 +626,8 @@ class MainActivity : Activity() {
         codigo.text =
             "Código: $codigoAtual"
 
-        codigo.textSize = 16f
+        codigo.textSize =
+            16f
 
         layout.addView(codigo)
 
@@ -498,7 +641,9 @@ class MainActivity : Activity() {
             nomeEncontrado
         )
 
-        layout.addView(nomeProduto)
+        layout.addView(
+            nomeProduto
+        )
 
         quantidade =
             EditText(this)
@@ -506,9 +651,12 @@ class MainActivity : Activity() {
         quantidade.hint =
             "Quantidade"
 
-        quantidade.inputType = 2
+        quantidade.inputType =
+            2
 
-        layout.addView(quantidade)
+        layout.addView(
+            quantidade
+        )
 
         validade =
             EditText(this)
@@ -516,11 +664,14 @@ class MainActivity : Activity() {
         validade.hint =
             "Validade (DD/MM/AAAA)"
 
-        validade.inputType = 2
+        validade.inputType =
+            2
 
         validade.filters =
             arrayOf(
-                InputFilter.LengthFilter(10)
+                InputFilter.LengthFilter(
+                    10
+                )
             )
 
         validade.addTextChangedListener(
@@ -556,7 +707,10 @@ class MainActivity : Activity() {
 
                     val numeros =
                         s.toString()
-                            .replace("/", "")
+                            .replace(
+                                "/",
+                                ""
+                            )
 
                     if (
                         numeros.length > 8
@@ -610,7 +764,9 @@ class MainActivity : Activity() {
             }
         )
 
-        layout.addView(validade)
+        layout.addView(
+            validade
+        )
 
         val salvar =
             Button(this)
@@ -623,9 +779,28 @@ class MainActivity : Activity() {
             salvarProduto()
         }
 
-        layout.addView(salvar)
+        layout.addView(
+            salvar
+        )
 
-        setContentView(layout)
+        val voltar =
+            Button(this)
+
+        voltar.text =
+            "VOLTAR"
+
+        voltar.setOnClickListener {
+
+            mostrarTelaInicial()
+        }
+
+        layout.addView(
+            voltar
+        )
+
+        setContentView(
+            layout
+        )
     }
 
     private fun salvarProduto() {
@@ -645,7 +820,9 @@ class MainActivity : Activity() {
                 .toString()
                 .trim()
 
-        if (nome.isEmpty()) {
+        if (
+            nome.isEmpty()
+        ) {
 
             Toast.makeText(
                 this,
@@ -711,7 +888,8 @@ class MainActivity : Activity() {
                     Locale.US
                 )
 
-            entrada.isLenient = false
+            entrada.isLenient =
+                false
 
             val dataConvertida =
                 entrada.parse(data)
@@ -812,5 +990,795 @@ class MainActivity : Activity() {
         ).show()
 
         mostrarTelaInicial()
+    }
+
+    private fun mostrarProdutosCadastrados() {
+
+        val layout =
+            criarLayoutInterno(
+                "PRODUTOS CADASTRADOS"
+            )
+
+        val db =
+            openOrCreateDatabase(
+                "validade.db",
+                MODE_PRIVATE,
+                null
+            )
+
+        val cursor =
+            db.rawQuery(
+                """
+                SELECT
+                    codigo_barras,
+                    produto
+                FROM catalogo_produtos
+                ORDER BY produto COLLATE NOCASE ASC
+                """.trimIndent(),
+                null
+            )
+
+        if (!cursor.moveToFirst()) {
+
+            adicionarTexto(
+                layout,
+                "Nenhum produto cadastrado."
+            )
+
+        } else {
+
+            do {
+
+                val codigo =
+                    cursor.getString(0)
+
+                val produto =
+                    cursor.getString(1)
+
+                val botao =
+                    Button(this)
+
+                botao.text =
+                    "$produto\nEAN: $codigo"
+
+                botao.setOnClickListener {
+
+                    mostrarHistoricoProduto(
+                        codigo,
+                        produto
+                    )
+                }
+
+                layout.addView(
+                    botao
+                )
+
+            } while (
+                cursor.moveToNext()
+            )
+        }
+
+        cursor.close()
+        db.close()
+
+        adicionarBotaoVoltar(
+            layout
+        )
+
+        setContentView(
+            layout
+        )
+    }
+
+    private fun mostrarHistoricoProduto(
+        codigo: String,
+        produto: String
+    ) {
+
+        val layout =
+            criarLayoutInterno(
+                produto
+            )
+
+        adicionarTexto(
+            layout,
+            "Código de barras: $codigo"
+        )
+
+        val db =
+            openOrCreateDatabase(
+                "validade.db",
+                MODE_PRIVATE,
+                null
+            )
+
+        val cursor =
+            db.rawQuery(
+                """
+                SELECT
+                    quantidade,
+                    validade
+                FROM produtos
+                WHERE codigo_barras = ?
+                ORDER BY validade ASC
+                """.trimIndent(),
+                arrayOf(codigo)
+            )
+
+        if (!cursor.moveToFirst()) {
+
+            adicionarTexto(
+                layout,
+                "Nenhum registro de validade."
+            )
+
+        } else {
+
+            do {
+
+                val quantidade =
+                    cursor.getInt(0)
+
+                val validade =
+                    cursor.getString(1)
+
+                adicionarTexto(
+                    layout,
+                    "Quantidade: $quantidade\nValidade: ${formatarDataBanco(validade)}"
+                )
+
+            } while (
+                cursor.moveToNext()
+            )
+        }
+
+        cursor.close()
+        db.close()
+
+        adicionarBotaoVoltar(
+            layout
+        )
+
+        setContentView(
+            layout
+        )
+    }
+
+    private fun mostrarBrigada(
+        diasMaximos: Int
+    ) {
+
+        val titulo =
+            "BRIGADA $diasMaximos DIAS"
+
+        val layout =
+            criarLayoutInterno(
+                titulo
+            )
+
+        val registros =
+            buscarBrigada(
+                diasMaximos
+            )
+
+        if (
+            registros.isEmpty()
+        ) {
+
+            adicionarTexto(
+                layout,
+                "Nenhum produto dentro deste prazo."
+            )
+
+        } else {
+
+            for (
+                registro in registros
+            ) {
+
+                adicionarTexto(
+                    layout,
+                    registro.texto
+                )
+            }
+
+            val exportar =
+                Button(this)
+
+            exportar.text =
+                "EXPORTAR PARA EXCEL"
+
+            exportar.setOnClickListener {
+
+                exportarBrigadaExcel(
+                    diasMaximos,
+                    registros
+                )
+            }
+
+            layout.addView(
+                exportar
+            )
+        }
+
+        adicionarBotaoVoltar(
+            layout
+        )
+
+        setContentView(
+            layout
+        )
+    }
+
+    data class RegistroBrigada(
+        val produto: String,
+        val codigo: String,
+        val quantidade: Int,
+        val validade: String,
+        val diasRestantes: Long
+    ) {
+
+        val texto: String
+            get() =
+                "$produto\n" +
+                    "Código: $codigo\n" +
+                    "Quantidade: $quantidade\n" +
+                    "Validade: ${formatarDataExterna(validade)}\n" +
+                    "Dias para vencer: $diasRestantes"
+    }
+
+    private fun buscarBrigada(
+        diasMaximos: Int
+    ): List<RegistroBrigada> {
+
+        val lista =
+            mutableListOf<RegistroBrigada>()
+
+        val hoje =
+            Calendar.getInstance()
+
+        hoje.set(
+            Calendar.HOUR_OF_DAY,
+            0
+        )
+
+        hoje.set(
+            Calendar.MINUTE,
+            0
+        )
+
+        hoje.set(
+            Calendar.SECOND,
+            0
+        )
+
+        hoje.set(
+            Calendar.MILLISECOND,
+            0
+        )
+
+        val limite =
+            Calendar.getInstance()
+
+        limite.timeInMillis =
+            hoje.timeInMillis
+
+        limite.add(
+            Calendar.DAY_OF_YEAR,
+            diasMaximos
+        )
+
+        val db =
+            openOrCreateDatabase(
+                "validade.db",
+                MODE_PRIVATE,
+                null
+            )
+
+        val cursor =
+            db.rawQuery(
+                """
+                SELECT
+                    produto,
+                    codigo_barras,
+                    quantidade,
+                    validade
+                FROM produtos
+                WHERE situacao_geral = 'ATIVO'
+                ORDER BY validade ASC
+                """.trimIndent(),
+                null
+            )
+
+        if (
+            cursor.moveToFirst()
+        ) {
+
+            do {
+
+                val produto =
+                    cursor.getString(0)
+
+                val codigo =
+                    cursor.getString(1)
+
+                val quantidade =
+                    cursor.getInt(2)
+
+                val validade =
+                    cursor.getString(3)
+
+                try {
+
+                    val data =
+                        SimpleDateFormat(
+                            "yyyy-MM-dd",
+                            Locale.US
+                        ).parse(
+                            validade
+                        )
+
+                    if (data != null) {
+
+                        val vencimento =
+                            Calendar.getInstance()
+
+                        vencimento.time =
+                            data
+
+                        vencimento.set(
+                            Calendar.HOUR_OF_DAY,
+                            0
+                        )
+
+                        vencimento.set(
+                            Calendar.MINUTE,
+                            0
+                        )
+
+                        vencimento.set(
+                            Calendar.SECOND,
+                            0
+                        )
+
+                        vencimento.set(
+                            Calendar.MILLISECOND,
+                            0
+                        )
+
+                        if (
+                            !vencimento.before(
+                                hoje
+                            ) &&
+                            !vencimento.after(
+                                limite
+                            )
+                        ) {
+
+                            val diferenca =
+                                (
+                                    vencimento.timeInMillis -
+                                        hoje.timeInMillis
+                                    ) /
+                                    (
+                                        24L *
+                                            60L *
+                                            60L *
+                                            1000L
+                                    )
+
+                            lista.add(
+                                RegistroBrigada(
+                                    produto,
+                                    codigo,
+                                    quantidade,
+                                    validade,
+                                    diferenca
+                                )
+                            )
+                        }
+                    }
+
+                } catch (_: Exception) {
+                }
+
+            } while (
+                cursor.moveToNext()
+            )
+        }
+
+        cursor.close()
+        db.close()
+
+        return lista.sortedBy {
+            it.diasRestantes
+        }
+    }
+
+    private fun exportarBrigadaExcel(
+        diasMaximos: Int,
+        registros: List<RegistroBrigada>
+    ) {
+
+        Executors.newSingleThreadExecutor()
+            .execute {
+
+                try {
+
+                    val workbook =
+                        XSSFWorkbook()
+
+                    val sheet =
+                        workbook.createSheet(
+                            "Brigada $diasMaximos dias"
+                        )
+
+                    val titulo =
+                        sheet.createRow(0)
+
+                    titulo.createCell(0)
+                        .setCellValue(
+                            "BRIGADA $diasMaximos DIAS"
+                        )
+
+                    titulo.createCell(1)
+                        .setCellValue(
+                            "Gerado em:"
+                        )
+
+                    titulo.createCell(2)
+                        .setCellValue(
+                            SimpleDateFormat(
+                                "dd/MM/yyyy HH:mm",
+                                Locale.getDefault()
+                            ).format(
+                                Date()
+                            )
+                        )
+
+                    val cabecalho =
+                        sheet.createRow(2)
+
+                    cabecalho.createCell(0)
+                        .setCellValue(
+                            "Produto"
+                        )
+
+                    cabecalho.createCell(1)
+                        .setCellValue(
+                            "Código de barras"
+                        )
+
+                    cabecalho.createCell(2)
+                        .setCellValue(
+                            "Quantidade"
+                        )
+
+                    cabecalho.createCell(3)
+                        .setCellValue(
+                            "Validade"
+                        )
+
+                    cabecalho.createCell(4)
+                        .setCellValue(
+                            "Dias para vencer"
+                        )
+
+                    registros.forEachIndexed {
+                        indice,
+                        registro ->
+
+                        val linha =
+                            sheet.createRow(
+                                indice + 3
+                            )
+
+                        linha.createCell(0)
+                            .setCellValue(
+                                registro.produto
+                            )
+
+                        linha.createCell(1)
+                            .setCellValue(
+                                registro.codigo
+                            )
+
+                        linha.createCell(2)
+                            .setCellValue(
+                                registro.quantidade.toDouble()
+                            )
+
+                        linha.createCell(3)
+                            .setCellValue(
+                                formatarDataExterna(
+                                    registro.validade
+                                )
+                            )
+
+                        linha.createCell(4)
+                            .setCellValue(
+                                registro.diasRestantes.toDouble()
+                            )
+                    }
+
+                    for (
+                        coluna in 0..4
+                    ) {
+
+                        sheet.autoSizeColumn(
+                            coluna
+                        )
+                    }
+
+                    val nomeArquivo =
+                        "Brigada_${diasMaximos}_dias_" +
+                            SimpleDateFormat(
+                                "yyyyMMdd_HHmm",
+                                Locale.getDefault()
+                            ).format(
+                                Date()
+                            ) +
+                            ".xlsx"
+
+                    if (
+                        android.os.Build.VERSION.SDK_INT >=
+                        android.os.Build.VERSION_CODES.Q
+                    ) {
+
+                        val values =
+                            ContentValues().apply {
+
+                                put(
+                                    MediaStore.Downloads.DISPLAY_NAME,
+                                    nomeArquivo
+                                )
+
+                                put(
+                                    MediaStore.Downloads.MIME_TYPE,
+                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                )
+
+                                put(
+                                    MediaStore.Downloads.RELATIVE_PATH,
+                                    "Download"
+                                )
+                            }
+
+                        val resolver =
+                            contentResolver
+
+                        val uri =
+                            resolver.insert(
+                                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                                values
+                            )
+
+                        if (
+                            uri != null
+                        ) {
+
+                            resolver.openOutputStream(
+                                uri
+                            ).use { saida ->
+
+                                workbook.write(
+                                    saida
+                                )
+                            }
+
+                            workbook.close()
+
+                            runOnUiThread {
+
+                                compartilharArquivo(
+                                    uri,
+                                    nomeArquivo
+                                )
+                            }
+
+                        } else {
+
+                            workbook.close()
+
+                            runOnUiThread {
+
+                                Toast.makeText(
+                                    this,
+                                    "Não foi possível criar o arquivo.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+
+                    } else {
+
+                        val arquivo =
+                            File(
+                                getExternalFilesDir(
+                                    null
+                                ),
+                                nomeArquivo
+                            )
+
+                        FileOutputStream(
+                            arquivo
+                        ).use {
+
+                            workbook.write(it)
+                        }
+
+                        workbook.close()
+
+                        runOnUiThread {
+
+                            Toast.makeText(
+                                this,
+                                "Excel criado em:\n${arquivo.absolutePath}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+
+                } catch (e: Exception) {
+
+                    runOnUiThread {
+
+                        Toast.makeText(
+                            this,
+                            "Erro ao gerar Excel: ${e.message}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }
+    }
+
+    private fun compartilharArquivo(
+        uri: android.net.Uri,
+        nomeArquivo: String
+    ) {
+
+        val intent =
+            Intent(
+                Intent.ACTION_SEND
+            )
+
+        intent.type =
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+        intent.putExtra(
+            Intent.EXTRA_STREAM,
+            uri
+        )
+
+        intent.addFlags(
+            Intent.FLAG_GRANT_READ_URI_PERMISSION
+        )
+
+        startActivity(
+            Intent.createChooser(
+                intent,
+                "Enviar $nomeArquivo"
+            )
+        )
+    }
+
+    private fun criarLayoutInterno(
+        tituloTexto: String
+    ): LinearLayout {
+
+        val layout =
+            LinearLayout(this)
+
+        layout.orientation =
+            LinearLayout.VERTICAL
+
+        layout.setPadding(
+            30,
+            30,
+            30,
+            30
+        )
+
+        val titulo =
+            TextView(this)
+
+        titulo.text =
+            tituloTexto
+
+        titulo.textSize =
+            24f
+
+        titulo.gravity =
+            Gravity.CENTER
+
+        layout.addView(
+            titulo
+        )
+
+        return layout
+    }
+
+    private fun adicionarTexto(
+        layout: LinearLayout,
+        texto: String
+    ) {
+
+        val campo =
+            TextView(this)
+
+        campo.text =
+            texto
+
+        campo.textSize =
+            16f
+
+        campo.setPadding(
+            10,
+            15,
+            10,
+            15
+        )
+
+        layout.addView(
+            campo
+        )
+    }
+
+    private fun adicionarBotaoVoltar(
+        layout: LinearLayout
+    ) {
+
+        val voltar =
+            Button(this)
+
+        voltar.text =
+            "VOLTAR"
+
+        voltar.setOnClickListener {
+
+            mostrarTelaInicial()
+        }
+
+        layout.addView(
+            voltar
+        )
+    }
+
+    private fun formatarDataBanco(
+        data: String
+    ): String {
+
+        return try {
+
+            val entrada =
+                SimpleDateFormat(
+                    "yyyy-MM-dd",
+                    Locale.US
+                )
+
+            val convertida =
+                entrada.parse(data)
+
+            SimpleDateFormat(
+                "dd/MM/yyyy",
+                Locale.getDefault()
+            ).format(
+                convertida!!
+            )
+
+        } catch (_: Exception) {
+
+            data
+        }
+    }
+
+    private fun formatarDataExterna(
+        data: String
+    ): String {
+
+        return formatarDataBanco(
+            data
+        )
     }
 }

@@ -28,8 +28,8 @@ android {
         applicationId = "com.patreze.brigadadevalidade"
         minSdk = 23
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.5"
+        versionCode = 6
+        versionName = "0.6"
 
         buildConfigField(
             "String",
@@ -40,5 +40,11 @@ android {
 }
 
 dependencies {
-    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+    implementation(
+        "com.google.android.gms:play-services-code-scanner:16.1.0"
+    )
+
+    implementation(
+        "org.apache.poi:poi-ooxml:5.4.1"
+    )
 }
