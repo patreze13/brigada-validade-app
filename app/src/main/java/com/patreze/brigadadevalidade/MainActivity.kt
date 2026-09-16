@@ -40,7 +40,7 @@ class MainActivity : Activity() {
     private lateinit var validade: EditText
     private lateinit var status: TextView
 
-    // Paleta de Cores Dark Mode
+    // Cores Dark Mode
     private val corFundoApp = Color.parseColor("#121212")
     private val corCardFundo = Color.parseColor("#1E1E1E")
     private val corBordaBranca = Color.parseColor("#FFFFFF")
@@ -52,10 +52,8 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         criarTabelaCatalogo()
         criarTabelaProdutos()
-
         mostrarTelaInicial()
     }
 
@@ -94,32 +92,51 @@ class MainActivity : Activity() {
     }
 
     private fun mostrarTelaInicial() {
-        val tela = criarEstruturaRolavel("PATREZE BRIGADA DE VALIDADE")
-        val layout = tela.second
-
-        adicionarBotaoPrincipal(layout, "ESCANEAR PRODUTO") {
-            abrirScanner()
+        val raiz = ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(corFundoApp)
         }
 
-        adicionarBotaoPrincipal(layout, "PRODUTOS CADASTRADOS") {
-            mostrarProdutosCadastrados()
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(40, 50, 40, 50)
         }
 
-        adicionarBotaoPrincipal(layout, "BRIGADA 60 DIAS") {
-            mostrarBrigada(60)
+        // Ícone/Logo grande
+        val iconeApp = ImageView(this).apply {
+            setImageResource(R.drawable.ic_launcher_foreground)
+            val tam = (110 * resources.displayMetrics.density).toInt()
+            layoutParams = LinearLayout.LayoutParams(tam, tam).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                bottomMargin = 10
+            }
         }
+        container.addView(iconeApp)
 
-        adicionarBotaoPrincipal(layout, "BRIGADA 30 DIAS") {
-            mostrarBrigada(30)
+        val titulo = TextView(this).apply {
+            text = "BRIGADA DE VALIDADE"
+            textSize = 24f
+            setTextColor(corTextoPrincipal)
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
         }
+        val subtitulo = TextView(this).apply {
+            text = "PATREZE GESTÃO"
+            textSize = 12f
+            setTextColor(corTextoSecundario)
+            gravity = Gravity.CENTER
+            setPadding(0, 4, 0, 35)
+        }
+        container.addView(titulo)
+        container.addView(subtitulo)
 
-        adicionarBotaoPrincipal(layout, "EXPORTAR BACKUP (JSON)") {
-            exportarBackupJson()
-        }
-
-        adicionarBotaoPrincipal(layout, "IMPORTAR BACKUP (JSON)") {
-            abrirSeletorImportarJson()
-        }
+        adicionarBotaoPrincipal(container, "ESCANEAR PRODUTO") { abrirScanner() }
+        adicionarBotaoPrincipal(container, "PRODUTOS CADASTRADOS") { mostrarProdutosCadastrados() }
+        adicionarBotaoPrincipal(container, "BRIGADA 60 DIAS") { mostrarBrigada(60) }
+        adicionarBotaoPrincipal(container, "BRIGADA 30 DIAS") { mostrarBrigada(30) }
+        adicionarBotaoPrincipal(container, "EXPORTAR BACKUP (JSON)") { exportarBackupJson() }
+        adicionarBotaoPrincipal(container, "IMPORTAR BACKUP (JSON)") { abrirSeletorImportarJson() }
 
         status = TextView(this).apply {
             text = ""
@@ -127,24 +144,17 @@ class MainActivity : Activity() {
             setTextColor(corTextoSecundario)
             gravity = Gravity.CENTER
         }
-
         val paramsStatus = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply {
-            topMargin = 25
-            bottomMargin = 20
-        }
-        layout.addView(status, paramsStatus)
+        ).apply { topMargin = 20 }
+        container.addView(status, paramsStatus)
 
-        setContentView(tela.first)
+        raiz.addView(container)
+        setContentView(raiz)
     }
 
-    private fun adicionarBotaoPrincipal(
-        layout: LinearLayout,
-        texto: String,
-        acao: () -> Unit
-    ) {
+    private fun adicionarBotaoPrincipal(layout: LinearLayout, texto: String, acao: () -> Unit) {
         val botao = Button(this).apply {
             text = texto
             textSize = 15f
@@ -167,7 +177,6 @@ class MainActivity : Activity() {
         layout.addView(botao, parametros)
     }
 
-    // Validador matemático de Checksum para EAN-13, EAN-8 e UPC-A
     private fun codigoBarrasValido(codigo: String): Boolean {
         if (!codigo.all { it.isDigit() }) return false
         if (codigo.length !in listOf(8, 12, 13)) return false
@@ -207,11 +216,10 @@ class MainActivity : Activity() {
                     return@addOnSuccessListener
                 }
 
-                // Proteção contra leituras cortadas
                 if (!codigoBarrasValido(lido)) {
                     AlertDialog.Builder(this)
                         .setTitle("Leitura Incompleta")
-                        .setMessage("O código \"$lido\" parece estar incompleto ou cortado. Deseja tentar escanear novamente ou digitar?")
+                        .setMessage("O código \"$lido\" parece estar incompleto ou ilegível.")
                         .setPositiveButton("ESCANEAR NOVAMENTE") { _, _ -> abrirScanner() }
                         .setNegativeButton("EDITAR MANUAL") { _, _ ->
                             codigoAtual = lido
@@ -221,37 +229,97 @@ class MainActivity : Activity() {
                     return@addOnSuccessListener
                 }
 
-                // Pop-up obrigatório de confirmação do código
                 confirmarCodigoEscaneado(lido)
             }
             .addOnCanceledListener {
-                if (::status.isInitialized) {
-                    status.text = "Leitura cancelada"
-                }
+                if (::status.isInitialized) status.text = "Leitura cancelada"
             }
             .addOnFailureListener { e ->
-                if (::status.isInitialized) {
-                    status.text = "Erro no scanner: ${e.message}"
-                }
+                if (::status.isInitialized) status.text = "Erro no scanner: ${e.message}"
             }
     }
 
+    // Diálogo com layout próprio para nunca cortar botões
     private fun confirmarCodigoEscaneado(codigo: String) {
-        AlertDialog.Builder(this)
-            .setTitle("Confirmar Código")
-            .setMessage("CÓDIGO ESCANEADO:\n\n$codigo\n\nConfirma o número?")
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(corCardFundo)
+            setPadding(40, 40, 40, 30)
+        }
+
+        val titulo = TextView(this).apply {
+            text = "CONFIRMAR CÓDIGO"
+            textSize = 19f
+            setTextColor(corTextoPrincipal)
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+        }
+        layout.addView(titulo)
+
+        val numTxt = TextView(this).apply {
+            text = codigo
+            textSize = 24f
+            setTextColor(corCriticaVerde)
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setPadding(0, 25, 0, 25)
+        }
+        layout.addView(numTxt)
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(layout)
             .setCancelable(false)
-            .setPositiveButton("CONFIRMAR") { _, _ ->
+            .create()
+
+        val btnConfirmar = Button(this).apply {
+            text = "CONFIRMAR E BUSCAR"
+            textSize = 15f
+            setTextColor(Color.BLACK)
+            typeface = Typeface.DEFAULT_BOLD
+            background = GradientDrawable().apply {
+                setColor(corBordaBranca)
+                cornerRadius = 12f
+            }
+            setOnClickListener {
+                dialog.dismiss()
                 codigoAtual = codigo
                 consultarProduto(codigo)
             }
-            .setNegativeButton("LER NOVAMENTE") { _, _ ->
+        }
+        layout.addView(btnConfirmar, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = 12 })
+
+        val btnLerNovamente = Button(this).apply {
+            text = "LER NOVAMENTE"
+            textSize = 14f
+            setTextColor(Color.WHITE)
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#333333"))
+                setStroke(2, corBordaBranca)
+                cornerRadius = 12f
+            }
+            setOnClickListener {
+                dialog.dismiss()
                 abrirScanner()
             }
-            .setNeutralButton("DIGITAR OUTRO") { _, _ ->
+        }
+        layout.addView(btnLerNovamente, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = 12 })
+
+        val btnDigitar = Button(this).apply {
+            text = "DIGITAR OUTRO"
+            textSize = 14f
+            setTextColor(Color.WHITE)
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#222222"))
+                cornerRadius = 12f
+            }
+            setOnClickListener {
+                dialog.dismiss()
                 pedirCodigoManualmente()
             }
-            .show()
+        }
+        layout.addView(btnDigitar, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+
+        dialog.show()
     }
 
     private fun pedirCodigoManualmente() {
@@ -259,10 +327,11 @@ class MainActivity : Activity() {
             hint = "Digite os números do código"
             inputType = 2
             setTextColor(corTextoPrincipal)
+            setHintTextColor(Color.GRAY)
         }
 
         AlertDialog.Builder(this)
-            .setTitle("Inserir Código Manual")
+            .setTitle("Código Manual")
             .setView(input)
             .setPositiveButton("AVANÇAR") { _, _ ->
                 val digitado = input.text.toString().trim()
@@ -276,9 +345,7 @@ class MainActivity : Activity() {
     }
 
     private fun consultarProduto(codigo: String) {
-        if (::status.isInitialized) {
-            status.text = "Consultando catálogo e API..."
-        }
+        if (::status.isInitialized) status.text = "Consultando produto..."
 
         Executors.newSingleThreadExecutor().execute {
             val nomeCatalogo = consultarCatalogoLocal(codigo)
@@ -291,11 +358,9 @@ class MainActivity : Activity() {
             }
 
             var nomeFinal = consultarApiAberta("https://world.openfoodfacts.org/api/v2/product/$codigo.json")
-
             if (nomeFinal.isBlank()) {
                 nomeFinal = consultarApiAberta("https://world.openbeautyfacts.org/api/v2/product/$codigo.json")
             }
-
             if (nomeFinal.isBlank()) {
                 nomeFinal = consultarApiAberta("https://world.openproductsfacts.org/api/v2/product/$codigo.json")
             }
@@ -306,7 +371,7 @@ class MainActivity : Activity() {
                     salvarCatalogo(codigo, nomeFinal)
                     mostrarCadastro(nomeFinal)
                 } else {
-                    Toast.makeText(this, "Produto não encontrado na base. Preencha manualmente.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "Produto não encontrado. Preencha manualmente.", Toast.LENGTH_SHORT).show()
                     mostrarCadastro("")
                 }
             }
@@ -331,9 +396,7 @@ class MainActivity : Activity() {
                     val produto = json.optJSONObject("product")
                     if (produto != null) {
                         var nome = produto.optString("product_name_pt", "")
-                        if (nome.isBlank()) {
-                            nome = produto.optString("product_name", "")
-                        }
+                        if (nome.isBlank()) nome = produto.optString("product_name", "")
                         val marca = produto.optString("brands", "")
                         return when {
                             nome.isNotBlank() && marca.isNotBlank() -> "$nome - $marca"
@@ -354,18 +417,11 @@ class MainActivity : Activity() {
     private fun consultarCatalogoLocal(codigo: String): String {
         val db = openOrCreateDatabase("validade.db", MODE_PRIVATE, null)
         val cursor = db.rawQuery(
-            """
-            SELECT produto FROM catalogo_produtos
-            WHERE codigo_barras = ? LIMIT 1
-            """.trimIndent(),
+            "SELECT produto FROM catalogo_produtos WHERE codigo_barras = ? LIMIT 1",
             arrayOf(codigo)
         )
-
         var resultado = ""
-        if (cursor.moveToFirst()) {
-            resultado = cursor.getString(0)
-        }
-
+        if (cursor.moveToFirst()) resultado = cursor.getString(0)
         cursor.close()
         db.close()
         return resultado
@@ -374,31 +430,29 @@ class MainActivity : Activity() {
     private fun salvarCatalogo(codigo: String, produto: String) {
         val db = openOrCreateDatabase("validade.db", MODE_PRIVATE, null)
         db.execSQL(
-            """
-            INSERT OR REPLACE INTO catalogo_produtos (codigo_barras, produto)
-            VALUES (?, ?)
-            """.trimIndent(),
+            "INSERT OR REPLACE INTO catalogo_produtos (codigo_barras, produto) VALUES (?, ?)",
             arrayOf(codigo, produto)
         )
         db.close()
     }
 
+    // Tela de cadastro centralizada e harmônica
     private fun mostrarCadastro(nomeEncontrado: String) {
-        val tela = criarEstruturaRolavel(if (nomeEncontrado.isNotBlank()) "PRODUTO IDENTIFICADO" else "NOVO CADASTRO")
+        val tela = criarEstruturaRolavel(if (nomeEncontrado.isNotBlank()) "PRODUTO ENCONTRADO" else "NOVO CADASTRO", centralizado = true)
         val raiz = tela.second
 
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply {
                 setColor(corCardFundo)
-                setStroke(3, corBordaBranca)
+                setStroke(2, corBordaBranca)
                 cornerRadius = 16f
             }
-            setPadding(30, 30, 30, 30)
+            setPadding(35, 35, 35, 35)
         }
 
         val codigo = TextView(this).apply {
-            text = "Código de Barras: $codigoAtual"
+            text = "Código: $codigoAtual"
             textSize = 15f
             setTextColor(corTextoSecundario)
             typeface = Typeface.DEFAULT_BOLD
@@ -460,9 +514,7 @@ class MainActivity : Activity() {
             val params = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = 18
-            }
+            ).apply { topMargin = 16 }
             layoutParams = params
         }
     }
@@ -533,31 +585,19 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun salvarSQLite(
-        codigo: String,
-        nome: String,
-        quantidade: Int,
-        validade: String
-    ) {
+    private fun salvarSQLite(codigo: String, nome: String, quantidade: Int, validade: String) {
         val db = openOrCreateDatabase("validade.db", MODE_PRIVATE, null)
         db.execSQL(
             """
-            INSERT INTO produtos (
-                codigo_barras,
-                produto,
-                quantidade,
-                validade,
-                criado_em
-            )
+            INSERT INTO produtos (codigo_barras, produto, quantidade, validade, criado_em)
             VALUES (?, ?, ?, ?, ?)
             """.trimIndent(),
             arrayOf(codigo, nome, quantidade, validade, Date().toString())
         )
-
         salvarCatalogo(codigo, nome)
         db.close()
 
-        Toast.makeText(this, "Produto cadastrado com sucesso", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Produto cadastrado!", Toast.LENGTH_SHORT).show()
         mostrarTelaInicial()
     }
 
@@ -567,17 +607,7 @@ class MainActivity : Activity() {
 
         val db = openOrCreateDatabase("validade.db", MODE_PRIVATE, null)
         val cursor = db.rawQuery(
-            """
-            SELECT
-                id,
-                produto,
-                codigo_barras,
-                quantidade,
-                validade
-            FROM produtos
-            WHERE situacao_geral = 'ATIVO'
-            ORDER BY validade ASC
-            """.trimIndent(),
+            "SELECT id, produto, codigo_barras, quantidade, validade FROM produtos WHERE situacao_geral = 'ATIVO' ORDER BY validade ASC",
             null
         )
 
@@ -587,6 +617,7 @@ class MainActivity : Activity() {
                 setTextColor(corTextoSecundario)
                 textSize = 16f
                 gravity = Gravity.CENTER
+                setPadding(0, 40, 0, 0)
             }
             containerCards.addView(vazio)
         } else {
@@ -638,6 +669,7 @@ class MainActivity : Activity() {
                 setTextColor(corTextoSecundario)
                 textSize = 16f
                 gravity = Gravity.CENTER
+                setPadding(0, 40, 0, 0)
             }
             containerCards.addView(vazio)
         } else {
@@ -657,25 +689,19 @@ class MainActivity : Activity() {
 
             val exportar = Button(this).apply {
                 text = "EXPORTAR PARA EXCEL (CSV)"
-                textSize = 16f
+                textSize = 15f
                 setTextColor(Color.BLACK)
                 typeface = Typeface.DEFAULT_BOLD
                 background = GradientDrawable().apply {
                     setColor(corBordaBranca)
                     cornerRadius = 14f
                 }
-                setOnClickListener {
-                    exportarBrigadaExcel(diasMaximos, registros)
-                }
+                setOnClickListener { exportarBrigadaExcel(diasMaximos, registros) }
             }
-            val paramsExportar = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
+            containerCards.addView(exportar, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                 topMargin = 15
                 bottomMargin = 15
-            }
-            containerCards.addView(exportar, paramsExportar)
+            })
         }
 
         adicionarBotaoVoltar(containerCards)
@@ -684,14 +710,12 @@ class MainActivity : Activity() {
 
     private fun buscarBrigada(diasMaximos: Int): List<RegistroBrigada> {
         val lista = mutableListOf<RegistroBrigada>()
-
         val hoje = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }
-
         val limite = Calendar.getInstance().apply {
             timeInMillis = hoje.timeInMillis
             add(Calendar.DAY_OF_YEAR, diasMaximos)
@@ -699,17 +723,7 @@ class MainActivity : Activity() {
 
         val db = openOrCreateDatabase("validade.db", MODE_PRIVATE, null)
         val cursor = db.rawQuery(
-            """
-            SELECT
-                id,
-                produto,
-                codigo_barras,
-                quantidade,
-                validade
-            FROM produtos
-            WHERE situacao_geral = 'ATIVO'
-            ORDER BY validade ASC
-            """.trimIndent(),
+            "SELECT id, produto, codigo_barras, quantidade, validade FROM produtos WHERE situacao_geral = 'ATIVO' ORDER BY validade ASC",
             null
         )
 
@@ -734,23 +748,12 @@ class MainActivity : Activity() {
 
                         if (!vencimento.before(hoje) && !vencimento.after(limite)) {
                             val diferenca = (vencimento.timeInMillis - hoje.timeInMillis) / (24L * 60L * 60L * 1000L)
-                            lista.add(
-                                RegistroBrigada(
-                                    id,
-                                    produto,
-                                    codigo,
-                                    quantidade,
-                                    validade,
-                                    diferenca
-                                )
-                            )
+                            lista.add(RegistroBrigada(id, produto, codigo, quantidade, validade, diferenca))
                         }
                     }
-                } catch (_: Exception) {
-                }
+                } catch (_: Exception) {}
             } while (cursor.moveToNext())
         }
-
         cursor.close()
         db.close()
 
@@ -817,14 +820,10 @@ class MainActivity : Activity() {
         }
         card.addView(txtValidade)
 
-        val paramsCard = LinearLayout.LayoutParams(
+        container.addView(card, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply {
-            setMargins(0, 10, 0, 14)
-        }
-
-        container.addView(card, paramsCard)
+        ).apply { setMargins(0, 8, 0, 12) })
     }
 
     private fun abrirMenuOpcoesProduto(
@@ -855,7 +854,7 @@ class MainActivity : Activity() {
                 val db = openOrCreateDatabase("validade.db", MODE_PRIVATE, null)
                 db.execSQL("DELETE FROM produtos WHERE id = ?", arrayOf(id))
                 db.close()
-                Toast.makeText(this, "Produto excluído com sucesso", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Produto excluído.", Toast.LENGTH_SHORT).show()
                 aoAtualizar()
             }
             .setNegativeButton("CANCELAR", null)
@@ -870,17 +869,17 @@ class MainActivity : Activity() {
         validadeAtual: String,
         aoAtualizar: () -> Unit
     ) {
-        val tela = criarEstruturaRolavel("EDITAR PRODUTO")
+        val tela = criarEstruturaRolavel("EDITAR PRODUTO", centralizado = true)
         val raiz = tela.second
 
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply {
                 setColor(corCardFundo)
-                setStroke(3, corBordaBranca)
+                setStroke(2, corBordaBranca)
                 cornerRadius = 16f
             }
-            setPadding(30, 30, 30, 30)
+            setPadding(35, 35, 35, 35)
         }
 
         val txtCodigo = TextView(this).apply {
@@ -903,11 +902,10 @@ class MainActivity : Activity() {
         configurarMascaraData(editValidade)
         card.addView(editValidade)
 
-        val paramsCard = LinearLayout.LayoutParams(
+        raiz.addView(card, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { bottomMargin = 25 }
-        raiz.addView(card, paramsCard)
+        ).apply { bottomMargin = 25 })
 
         val botaoSalvar = Button(this).apply {
             text = "ATUALIZAR PRODUTO"
@@ -942,31 +940,25 @@ class MainActivity : Activity() {
 
                 val db = openOrCreateDatabase("validade.db", MODE_PRIVATE, null)
                 db.execSQL(
-                    """
-                    UPDATE produtos
-                    SET produto = ?, quantidade = ?, validade = ?
-                    WHERE id = ?
-                    """.trimIndent(),
+                    "UPDATE produtos SET produto = ?, quantidade = ?, validade = ? WHERE id = ?",
                     arrayOf(novoNome, novaQtd, novaDataFormatada, id)
                 )
                 salvarCatalogo(codigo, novoNome)
                 db.close()
 
-                Toast.makeText(this@MainActivity, "Produto atualizado com sucesso!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, "Atualizado com sucesso!", Toast.LENGTH_SHORT).show()
                 aoAtualizar()
             }
         }
-        val paramsSalvar = LinearLayout.LayoutParams(
+        raiz.addView(botaoSalvar, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { bottomMargin = 15 }
-        raiz.addView(botaoSalvar, paramsSalvar)
+        ).apply { bottomMargin = 15 })
 
         val botaoCancelar = Button(this).apply {
             text = "CANCELAR"
-            textSize = 16f
+            textSize = 15f
             setTextColor(Color.BLACK)
-            typeface = Typeface.DEFAULT_BOLD
             background = GradientDrawable().apply {
                 setColor(Color.parseColor("#CCCCCC"))
                 cornerRadius = 14f
@@ -977,10 +969,6 @@ class MainActivity : Activity() {
 
         setContentView(tela.first)
     }
-
-    // ==========================================
-    // BACKUP: EXPORTAR E IMPORTAR JSON
-    // ==========================================
 
     private fun exportarBackupJson() {
         Executors.newSingleThreadExecutor().execute {
@@ -1019,7 +1007,7 @@ class MainActivity : Activity() {
                     }
 
                     val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                        ?: throw Exception("Erro ao criar arquivo no MediaStore")
+                        ?: throw Exception("Erro ao criar arquivo.")
 
                     contentResolver.openOutputStream(uri).use { saida ->
                         saida?.write(bytes)
@@ -1035,12 +1023,12 @@ class MainActivity : Activity() {
                     }
                 } else {
                     runOnUiThread {
-                        Toast.makeText(this, "Requer Android 10 ou superior para salvar em Downloads", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, "Requer Android 10 ou superior.", Toast.LENGTH_SHORT).show()
                     }
                 }
             } catch (e: Exception) {
                 runOnUiThread {
-                    Toast.makeText(this, "Falha ao exportar backup: ${e.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "Falha ao exportar: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -1051,7 +1039,7 @@ class MainActivity : Activity() {
             type = "*/*"
             addCategory(Intent.CATEGORY_OPENABLE)
         }
-        startActivityForResult(Intent.createChooser(intent, "Selecione o arquivo de Backup JSON"), REQ_IMPORTAR_JSON)
+        startActivityForResult(Intent.createChooser(intent, "Selecione o Backup JSON"), REQ_IMPORTAR_JSON)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -1082,10 +1070,7 @@ class MainActivity : Activity() {
 
                     if (codigo.isNotBlank() && produto.isNotBlank() && valData.isNotBlank()) {
                         db.execSQL(
-                            """
-                            INSERT INTO produtos (codigo_barras, produto, quantidade, validade, criado_em)
-                            VALUES (?, ?, ?, ?, ?)
-                            """.trimIndent(),
+                            "INSERT INTO produtos (codigo_barras, produto, quantidade, validade, criado_em) VALUES (?, ?, ?, ?, ?)",
                             arrayOf(codigo, produto, qtd, valData, criadoEm)
                         )
                         salvarCatalogo(codigo, produto)
@@ -1109,11 +1094,18 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun criarEstruturaRolavel(tituloTexto: String): Pair<LinearLayout, LinearLayout> {
+    private fun criarEstruturaRolavel(tituloTexto: String, centralizado: Boolean = false): Pair<ScrollView, LinearLayout> {
+        val scrollView = ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(corFundoApp)
+        }
+
         val layoutRaiz = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(corFundoApp)
-            setPadding(30, 40, 30, 20)
+            if (centralizado) {
+                gravity = Gravity.CENTER
+            }
+            setPadding(35, 45, 35, 35)
         }
 
         val titulo = TextView(this).apply {
@@ -1126,48 +1118,31 @@ class MainActivity : Activity() {
         val paramsTitulo = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { bottomMargin = 20 }
+        ).apply { bottomMargin = 25 }
         layoutRaiz.addView(titulo, paramsTitulo)
 
-        val scrollView = ScrollView(this).apply {
-            isFillViewport = true
-        }
-
-        val containerInterno = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
-
         scrollView.addView(
-            containerInterno,
+            layoutRaiz,
             ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             )
         )
 
-        val paramsScroll = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            0,
-            1f
-        )
-        layoutRaiz.addView(scrollView, paramsScroll)
-
-        return Pair(layoutRaiz, containerInterno)
+        return Pair(scrollView, layoutRaiz)
     }
 
     private fun adicionarBotaoVoltar(layout: LinearLayout) {
         val voltar = Button(this).apply {
             text = "VOLTAR"
-            textSize = 16f
+            textSize = 15f
             setTextColor(Color.BLACK)
             typeface = Typeface.DEFAULT_BOLD
             background = GradientDrawable().apply {
                 setColor(corBordaBranca)
                 cornerRadius = 14f
             }
-            setOnClickListener {
-                mostrarTelaInicial()
-            }
+            setOnClickListener { mostrarTelaInicial() }
         }
 
         val params = LinearLayout.LayoutParams(
@@ -1181,15 +1156,11 @@ class MainActivity : Activity() {
         layout.addView(voltar, params)
     }
 
-    private fun exportarBrigadaExcel(
-        diasMaximos: Int,
-        registros: List<RegistroBrigada>
-    ) {
+    private fun exportarBrigadaExcel(diasMaximos: Int, registros: List<RegistroBrigada>) {
         Executors.newSingleThreadExecutor().execute {
             try {
                 val nomeArquivo = "Brigada_${diasMaximos}_dias_" +
-                    SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date()) +
-                    ".csv"
+                    SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date()) + ".csv"
 
                 val csv = StringBuilder()
                 csv.append("BRIGADA $diasMaximos DIAS\n")
@@ -1216,35 +1187,18 @@ class MainActivity : Activity() {
                     }
 
                     val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                        ?: throw Exception("Não foi possível criar o arquivo no MediaStore.")
+                        ?: throw Exception("Não foi possível criar o arquivo.")
 
                     contentResolver.openOutputStream(uri).use { saida ->
-                        if (saida == null) {
-                            throw Exception("Não foi possível gravar o arquivo.")
-                        }
-                        saida.write(bytes)
+                        saida?.write(bytes)
                     }
 
-                    runOnUiThread {
-                        compartilharArquivo(uri, nomeArquivo)
-                    }
+                    runOnUiThread { compartilharArquivo(uri, nomeArquivo) }
                 } else {
-                    runOnUiThread {
-                        Toast.makeText(
-                            this,
-                            "A exportação requer Android 10 ou superior.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
+                    runOnUiThread { Toast.makeText(this, "Requer Android 10 ou superior.", Toast.LENGTH_LONG).show() }
                 }
             } catch (e: Exception) {
-                runOnUiThread {
-                    Toast.makeText(
-                        this,
-                        "Erro ao gerar arquivo: ${e.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
+                runOnUiThread { Toast.makeText(this, "Erro: ${e.message}", Toast.LENGTH_LONG).show() }
             }
         }
     }
@@ -1255,7 +1209,6 @@ class MainActivity : Activity() {
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-
         startActivity(Intent.createChooser(intent, "Enviar $nomeArquivo"))
     }
 
